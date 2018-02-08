@@ -1,0 +1,1499 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 
+  AWS Kubernetes (K8s) / KOPS CFN stack template.
+  Production Grade, clean, full-scale deployment.
+  Resilient self-healing Bastion host,
+  Private topology,
+  Multi AZ K8s Mastser,
+  Multi AZ NAT Gateway,
+  Automatic AutoScaled K8s Nodes (otpional),
+  Private Multi-AZ VPC,
+  Copyright Tamas Tobi / Total Cloud Consulting @ 2018'
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+    - Label:
+        default: AWS VPC Configuration
+      Parameters:
+      - VPCIPv4CIDRBlock
+      - AdminIngressLocation
+    - Label:
+        default: AWS EC2 / Kubernetes Configuration
+      Parameters:
+      - K8sClusterName
+      - Ec2KeyPairName
+      - Ec2BastionInstanceType
+      - Ec2K8sMasterInstanceType
+      - Ec2K8sNodeInstanceType
+      - Ec2K8sNodeCapacityMin
+      - Ec2K8sNodeCapacityMax
+      - Ec2EBSK8sDiskSizeGb
+      - S3BootstrapBucketName
+      - S3BootstrapBucketPrefix
+      - Ec2K8sAMIOsType
+    - Label:
+        default: Kubernetes Add-Ons, Configuration
+      Parameters:
+      - KubernetesAPIPublicAccess
+      - KubernetesClusterAutoscaler
+      - KubernetesDashboard
+      - KubernetesHeapsterMonitoring
+
+    ParameterLabels:
+      VPCIPv4CIDRBlock:
+        default: Creates a new VPC with defined CIDR block
+      AdminIngressLocation:
+        default: Bastion Admin Host Ingress Allowed Location IPv4 range
+      K8sClusterName:
+        default: Kubernetes Cluster Name
+      Ec2KeyPairName:
+        default: Existing EC2 keypair name for instances
+      Ec2BastionInstanceType:
+        default: Bastion instance type
+      Ec2K8sMasterInstanceType:
+        default: K8s Master Instances Type
+      Ec2K8sNodeInstanceType:
+        default: K8s Nodes Instances Type
+      Ec2K8sNodeCapacityMin:
+        default: K8s AutoScaling MINIMUM Node Number
+      Ec2K8sNodeCapacityMax:
+        default: K8s AutoScaling MAXIMUM Node Number (If Autoscaling Plugin enabled!)
+      Ec2EBSK8sDiskSizeGb:
+        default: K8s Instances Disk Size (GB)
+      S3BootstrapBucketName:
+        default: S3 bucket NAME for Bootstrap Files (Bastion, K8s, KOPS, Kubernetes)
+      S3BootstrapBucketPrefix:
+        default: S3 key prefix for Bootstrap Files (Bastion, K8s, KOPS, Kubernetes)
+      Ec2K8sAMIOsType:
+        default: K8s Operation System type for Master / Nodes
+      KubernetesClusterAutoscaler:
+        default: Install Kubernetes Cluster Autoscaler
+      KubernetesDashboard:
+        default: Install Kubernetes Dashboard
+      KubernetesHeapsterMonitoring:
+        default: Imnstall Heapster Monitoring
+      KubernetesAPIPublicAccess:
+        default: "Public Internet Kubernetes API acess via HTTPS"
+
+Parameters:
+  VPCIPv4CIDRBlock:
+    Description: /16. Create a new VPC with a CIDR block.
+    Type: String
+    Default: 10.201.0.0
+    AllowedValues:
+      - 10.201.0.0
+      - 10.202.0.0
+      - 10.203.0.0
+      - 10.204.0.0
+      - 10.205.0.0
+    ConstraintDescription: '/16. must be a valid, not existing IPv4 CIDR block.'
+
+  AdminIngressLocation:
+    Description: CIDR block (IP address range) to allow SSH/VPN access to the 
+      bastion host. Use 0.0.0.0/0 to allow access from all locations.
+    Type: String
+    Default: '0.0.0.0/0'
+    MinLength: 9
+    MaxLength: 18
+    AllowedPattern: "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})"
+    ConstraintDescription: must be a valid IPv4 CIDR range of the form x.x.x.x/x.
+
+  K8sClusterName:
+    Description: Name of the Kubernetes Cluster
+    Type: String
+    MinLength: '3'
+    Default: full-scale
+    AllowedPattern: "^[0-9a-zA-Z]+([0-9a-zA-Z-]*[0-9a-zA-Z])*$"
+    ConstraintDescription: Kubernetes Cluster Name can include numbers, lowercase
+      letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen
+      (-).
+
+  Ec2KeyPairName:
+    Description: Existing EC2 KeyPair for SSH access on Bastion host.
+    Type: AWS::EC2::KeyPair::KeyName
+    ConstraintDescription: must be the name of an existing EC2 KeyPair.
+
+  Ec2BastionInstanceType:
+    Description: EC2 type for the Bastion instance.
+    Type: String
+    Default: t2.small
+    AllowedValues:
+    - t2.micro
+    - t2.small
+    - t2.medium
+    - t2.large
+    - m3.medium
+    - m4.large
+    - m5.large
+    - m5.xlarge
+    - c4.large
+    - c5.large
+    - c5.xlarge
+    ConstraintDescription: must be a valid EC2 instance type.
+    
+  Ec2K8sMasterInstanceType:
+    Description: EC2 type for the K8s Master instance(s).
+    Type: String
+    Default: t2.medium
+    AllowedValues:
+    - t2.medium
+    - t2.large
+    - m3.medium
+    - m4.large
+    - m4.xlarge
+    - m5.large
+    - m5.xlarge
+    - m5.2xlarge
+    - c4.large
+    - c4.xlarge
+    - c5.large
+    - c5.xlarge
+    - c5.2xlarge
+    ConstraintDescription: must be a valid EC2 instance type.
+
+  Ec2K8sNodeInstanceType:
+    Description: EC2 type for the K8s Node instance(s).
+    Type: String
+    Default: t2.medium
+    AllowedValues:
+    - t2.medium
+    - t2.large
+    - m3.medium
+    - m4.large
+    - m4.xlarge
+    - m5.large
+    - m5.xlarge
+    - m5.2xlarge
+    - c4.large
+    - c4.xlarge
+    - c5.large
+    - c5.xlarge
+    - c5.2xlarge
+    ConstraintDescription: must be a valid EC2 instance type.
+
+  Ec2K8sNodeCapacityMin:
+    Default: '3'
+    Description: The initial number of Kubernetes Node Instances
+    Type: Number
+    MinValue: '3'
+    MaxValue: '100'
+    ConstraintDescription: must be between 1 and 10 EC2 instances.
+    
+  Ec2K8sNodeCapacityMax:
+    Default: '3'
+    Description: The MAXIMUM number of Kubernetes Node Instances
+    Type: Number
+    MinValue: '3'
+    MaxValue: '100'
+    ConstraintDescription: must be between 1 and 10 EC2 instances.
+
+  Ec2EBSK8sDiskSizeGb:
+    Description: 'Size of the root disk for the K8s EC2 instances, in GiB.  Default: 50'
+    Default: 50
+    Type: Number
+    MinValue: 40
+    MaxValue: 1024
+
+  S3BootstrapBucketName:
+    AllowedPattern: "^[0-9a-zA-Z]+([0-9a-zA-Z-]*[0-9a-zA-Z])*$"
+    ConstraintDescription: Bootstrap S3 bucket name can include numbers, lowercase
+      letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen
+      (-).
+
+    Default: tc2-kubernetes
+    Description: Bootstrap Scripts in S3 for K8s cluster creation
+    Type: String
+  
+  S3BootstrapBucketPrefix:
+    AllowedPattern: "^[0-9a-zA-Z-]+(/[0-9a-zA-Z-]+)*$"
+    ConstraintDescription: Bootstrap S3 key prefix can include numbers, lowercase letters,
+      uppercase letters, hyphens (-), and forward slash (/). It cannot start or end
+      with forward slash (/) because they are automatically appended.
+    Default: latest
+    Description: Folder (key) path within bootstrap S3 bucket
+    Type: String
+
+
+  Ec2K8sAMIOsType:
+    Description: Host Operating System Type for K8s Master and Nodes on Ec2 instances
+    Type: String
+    Default: CoreOS-Latest
+    AllowedValues:
+    - CoreOS-Latest
+    - Debian-Jessie
+    - Ubuntu-1604
+    - CentOS-7-Latest
+    - RHEL-7-Latest
+    ConstraintDescription: must be a valid OS type.
+    
+  KubernetesClusterAutoscaler:
+    Description: >-
+      Kubernetes Cluster Autoscaler plugin: https://github.com/kubernetes/autoscaler
+    Type: String
+    Default: 'true'
+    AllowedValues:
+      - 'true'
+      - 'false'
+    
+  KubernetesDashboard:
+    Description: >-
+      Kubernetes Dashboard plugin: https://github.com/kubernetes/dashboard
+    Type: String
+    Default: 'false'
+    AllowedValues:
+      - 'true'
+      - 'false'
+      
+  KubernetesHeapsterMonitoring:
+    Description: >-
+      Kubernetes Heapster plugin: https://github.com/kubernetes/heapster
+    Type: String
+    Default: 'false'
+    AllowedValues:
+      - 'true'
+      - 'false'
+      
+  KubernetesAPIPublicAccess:
+    Description: If true, Kubernetes cluster API endpoint is publicly available, otherwise only from Bastion host / VPN / SSH.
+    Type: String
+    Default: 'false'
+    AllowedValues:
+      - 'true'
+      - 'false'
+
+
+
+Mappings:
+  SubnetConfig:
+    10.201.0.0:
+      Subnet1CIDR: 10.201.0.0/20
+      Subnet2CIDR: 10.201.16.0/20
+      Subnet3CIDR: 10.201.32.0/20
+      Subnet4CIDR: 10.201.48.0/20
+      Subnet5CIDR: 10.201.64.0/20
+      Subnet6CIDR: 10.201.80.0/20
+    10.202.0.0:
+      Subnet1CIDR: 10.202.0.0/20
+      Subnet2CIDR: 10.202.16.0/20
+      Subnet3CIDR: 10.202.32.0/20
+      Subnet4CIDR: 10.202.48.0/20
+      Subnet5CIDR: 10.202.64.0/20
+      Subnet6CIDR: 10.202.80.0/20
+    10.203.0.0:
+      Subnet1CIDR: 10.203.0.0/20
+      Subnet2CIDR: 10.203.16.0/20
+      Subnet3CIDR: 10.203.32.0/20
+      Subnet4CIDR: 10.203.48.0/20
+      Subnet5CIDR: 10.203.64.0/20
+      Subnet6CIDR: 10.203.80.0/20
+    10.204.0.0:
+      Subnet1CIDR: 10.204.0.0/20
+      Subnet2CIDR: 10.204.16.0/20
+      Subnet3CIDR: 10.204.32.0/20
+      Subnet4CIDR: 10.204.48.0/20
+      Subnet5CIDR: 10.204.64.0/20
+      Subnet6CIDR: 10.204.80.0/20
+    10.205.0.0:
+      Subnet1CIDR: 10.205.0.0/20
+      Subnet2CIDR: 10.205.16.0/20
+      Subnet3CIDR: 10.205.32.0/20
+      Subnet4CIDR: 10.205.48.0/20
+      Subnet5CIDR: 10.205.64.0/20
+      Subnet6CIDR: 10.205.80.0/20
+  
+  AWSRegion2AZ:
+    eu-central-1:
+      Name: Frankfurt
+      NumAZs: '3'
+      AZ0: '0'
+      AZ1: '1'
+      AZ2: '2'
+    eu-west-1:
+      Name: Ireland
+      NumAZs: '3'
+      AZ0: '0'
+      AZ1: '1'
+      AZ2: '2'
+    eu-west-2:
+      Name: London
+      NumAZs: '3'
+      AZ0: '0'
+      AZ1: '1'
+      AZ2: '2'
+    eu-west-3:
+      Name: Paris
+      NumAZs: '3'
+      AZ0: '0'
+      AZ1: '1'
+      AZ2: '2'
+    us-east-1:
+      Name: N. Virgina
+      NumAZs: '6'
+      AZ0: '3'
+      AZ1: '4'
+      AZ2: '5'
+    us-east-2:
+      Name: Ohio
+      NumAZs: '3'
+      AZ0: '0'
+      AZ1: '1'
+      AZ2: '2'
+    us-west-1:
+      Name: N. California
+      NumAZs: '3'
+      AZ0: '0'
+      AZ1: '1'
+      AZ2: '2'
+    us-west-2:
+      Name: Oregon
+      NumAZs: '3'
+      AZ0: '0'
+      AZ1: '1'
+      AZ2: '2'
+    ap-south-1:
+      Name: Mumbai
+      NumAZs: '2'
+      AZ0: '0'
+      AZ1: '1'
+      AZ2: '0'
+    ap-northeast-2:
+      Name: Seoul
+      NumAZs: '2'
+      AZ0: '0'
+      AZ1: '1'
+      AZ2: '0'
+    ap-southeast-1:
+      Name: Singapore
+      NumAZs: '3'
+      AZ0: '0'
+      AZ1: '1'
+      AZ2: '2'
+    ap-southeast-2:
+      Name: Sydney
+      NumAZs: '3'
+      AZ0: '0'
+      AZ1: '1'
+      AZ2: '2'
+    ap-northeast-1:
+      Name: Tokyo
+      NumAZs: '4'
+      AZ0: '0'
+      AZ1: '1'
+      AZ2: '2'
+    ap-northeast-1:
+      Name: Tokyo
+      NumAZs: '4'
+      AZ0: '0'
+      AZ1: '1'
+      AZ2: '2'
+    sa-east-1:
+      Name: Sao Paulo
+      NumAZs: '3'
+      AZ0: '0'
+      AZ1: '1'
+      AZ2: '2'
+    ca-central-1:
+      Name: Canada Central
+      NumAZs: '2'
+      AZ0: '0'
+      AZ1: '1'
+      AZ2: '0'
+
+  RegionMap: 
+    eu-central-1: 
+      "Ubuntu1604": "ami-5055cd3f"
+    eu-west-1: 
+      "Ubuntu1604": "ami-1b791862"
+    eu-west-2: 
+      "Ubuntu1604": "ami-941e04f0"
+    eu-west-3: 
+      "Ubuntu1604": "ami-c1cf79bc"
+    us-east-1: 
+      "Ubuntu1604": "ami-66506c1c"
+    us-east-2: 
+      "Ubuntu1604": "ami-965e6bf3"
+    us-west-1: 
+      "Ubuntu1604": "ami-07585467"
+    us-west-2: 
+      "Ubuntu1604": "ami-79873901"
+    ap-south-1: 
+      "Ubuntu1604": "ami-84e3b2eb"
+    ap-northeast-2: 
+      "Ubuntu1604": "ami-ab77d4c5"
+    ap-southeast-1: 
+      "Ubuntu1604": "ami-b7f388cb"
+    ap-southeast-2: 
+      "Ubuntu1604": "ami-33ab5251"
+    ap-northeast-1: 
+      "Ubuntu1604": "ami-48630c2e"
+    ca-central-1: 
+      "Ubuntu1604": "ami-173db873"
+    sa-east-1: 
+      "Ubuntu1604": "ami-bb9bd7d7"
+
+
+Resources:
+########################################################
+# Networking Configuration
+########################################################
+
+  VPC:
+    Type: 'AWS::EC2::VPC'
+    Properties:
+      CidrBlock: !Sub "${VPCIPv4CIDRBlock}/16"
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+      - Key: Name
+        Value: !Sub "K8s VPC ${K8sClusterName}"
+      - Key: KubernetesCluster
+        Value: !Ref AWS::StackName
+  
+  PublicSubnet1:
+    DependsOn:
+      - VPC
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !FindInMap 
+        - SubnetConfig
+        - !Ref VPCIPv4CIDRBlock
+        - Subnet1CIDR
+      MapPublicIpOnLaunch: true
+      AvailabilityZone: !Select 
+        - !FindInMap 
+          - AWSRegion2AZ
+          - !Ref 'AWS::Region'
+          - AZ0
+        - !GetAZs 
+          Ref: 'AWS::Region'
+      Tags:
+      - Key: Name
+        Value: !Sub "K8s PublicSubnet1 ${K8sClusterName}"
+      - Key: KubernetesCluster
+        Value: !Ref AWS::StackName
+      - Key: kubernetes.io/role/alb-ingress
+        Value: ''
+    
+  PublicSubnet2:
+    DependsOn:
+      - VPC
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !FindInMap 
+        - SubnetConfig
+        - !Ref VPCIPv4CIDRBlock
+        - Subnet2CIDR
+      MapPublicIpOnLaunch: true
+      AvailabilityZone: !Select 
+        - !FindInMap 
+          - AWSRegion2AZ
+          - !Ref 'AWS::Region'
+          - AZ1
+        - !GetAZs 
+          Ref: 'AWS::Region'
+      Tags:
+      - Key: Name
+        Value: !Sub "K8s PublicSubnet2 ${K8sClusterName}"
+      - Key: KubernetesCluster
+        Value: !Ref AWS::StackName
+      - Key: kubernetes.io/role/alb-ingress
+        Value: ''
+        
+  PublicSubnet3:
+    DependsOn:
+      - VPC
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !FindInMap 
+        - SubnetConfig
+        - !Ref VPCIPv4CIDRBlock
+        - Subnet6CIDR
+      MapPublicIpOnLaunch: true
+      AvailabilityZone: !Select 
+        - !FindInMap 
+          - AWSRegion2AZ
+          - !Ref 'AWS::Region'
+          - AZ2
+        - !GetAZs 
+          Ref: 'AWS::Region'
+      Tags:
+      - Key: Name
+        Value: !Sub "K8s PublicSubnet3 ${K8sClusterName}"
+      - Key: KubernetesCluster
+        Value: !Ref AWS::StackName
+      - Key: kubernetes.io/role/alb-ingress
+        Value: ''
+
+  PrivateSubnet1:
+    DependsOn:
+      - VPC
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !FindInMap 
+        - SubnetConfig
+        - !Ref VPCIPv4CIDRBlock
+        - Subnet3CIDR
+      MapPublicIpOnLaunch: false
+      AvailabilityZone: !Select 
+        - !FindInMap 
+          - AWSRegion2AZ
+          - !Ref 'AWS::Region'
+          - AZ1
+        - !GetAZs 
+          Ref: 'AWS::Region'
+      Tags:
+      - Key: Name
+        Value: !Sub "K8s PrivateSubnet1 ${K8sClusterName}"
+      - Key: KubernetesCluster
+        Value: !Ref AWS::StackName
+          
+  PrivateSubnet2:
+    DependsOn:
+      - VPC
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !FindInMap 
+        - SubnetConfig
+        - !Ref VPCIPv4CIDRBlock
+        - Subnet4CIDR
+      MapPublicIpOnLaunch: false
+      AvailabilityZone: !Select 
+        - !FindInMap 
+          - AWSRegion2AZ
+          - !Ref 'AWS::Region'
+          - AZ2
+        - !GetAZs 
+          Ref: 'AWS::Region'
+      Tags:
+      - Key: Name
+        Value: !Sub "K8s PrivateSubnet2 ${K8sClusterName}"
+      - Key: KubernetesCluster
+        Value: !Ref AWS::StackName
+        
+  PrivateSubnet3:
+    DependsOn:
+      - VPC
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !FindInMap 
+        - SubnetConfig
+        - !Ref VPCIPv4CIDRBlock
+        - Subnet5CIDR
+      MapPublicIpOnLaunch: false
+      AvailabilityZone: !Select 
+        - !FindInMap 
+          - AWSRegion2AZ
+          - !Ref 'AWS::Region'
+          - AZ0
+        - !GetAZs 
+          Ref: 'AWS::Region'
+      Tags:
+      - Key: Name
+        Value: !Sub "K8s PrivateSubnet3 ${K8sClusterName}"
+      - Key: KubernetesCluster
+        Value: !Ref AWS::StackName
+
+  InternetGateway:
+    DependsOn:
+      - VPC
+      - PublicSubnet1
+      - PublicSubnet2
+      - PublicSubnet3
+      - PrivateSubnet1
+      - PrivateSubnet2
+      - PrivateSubnet3
+    Type: 'AWS::EC2::InternetGateway'
+    Properties:
+      Tags:
+      - Key: Name
+        Value: !Sub "K8s InternetGateway ${K8sClusterName}"
+      - Key: KubernetesCluster
+        Value: !Ref AWS::StackName
+  
+  GatewayToVPCAssociation:
+    DependsOn:
+      - VPC
+      - InternetGateway
+      - PublicSubnet1
+      - PublicSubnet2
+      - PublicSubnet3
+      - PrivateSubnet1
+      - PrivateSubnet2
+      - PrivateSubnet3
+    Type: 'AWS::EC2::VPCGatewayAttachment'
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+  
+  PublicRouteTable:
+    DependsOn:
+      - VPC
+      - PublicSubnet1
+      - PublicSubnet2
+    Type: 'AWS::EC2::RouteTable'
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+      - Key: Name
+        Value: !Sub "K8s PublicRouteTable ${K8sClusterName}"
+      - Key: KubernetesCluster
+        Value: !Ref AWS::StackName
+    
+  PublicRoute:
+    DependsOn:
+      - PublicRouteTable
+      - InternetGateway
+      - GatewayToVPCAssociation
+      - VPC
+      - PublicSubnet1
+      - PublicSubnet2
+    Type: 'AWS::EC2::Route'
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+  
+  
+  PublicSubnetRouteTableAssociation1:
+    DependsOn:
+      - PublicSubnet1
+      - PublicRouteTable
+      - VPC
+      - PublicRoute
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      SubnetId: !Ref PublicSubnet1
+      RouteTableId: !Ref PublicRouteTable
+  
+  
+  PublicSubnetRouteTableAssociation2:
+    DependsOn:
+      - PublicSubnet2
+      - PublicRouteTable
+      - VPC
+      - PublicRoute
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      SubnetId: !Ref PublicSubnet2
+      RouteTableId: !Ref PublicRouteTable
+      
+  PublicSubnetRouteTableAssociation3:
+    DependsOn:
+      - PublicSubnet3
+      - PublicRouteTable
+      - VPC
+      - PublicRoute
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      SubnetId: !Ref PublicSubnet3
+      RouteTableId: !Ref PublicRouteTable
+  
+  NATElasticIP1:
+    DependsOn:
+      - PublicSubnet1
+      - PublicRouteTable
+      - VPC
+      - PublicRoute
+    Type: 'AWS::EC2::EIP'
+    
+  NATElasticIP2:
+    DependsOn:
+      - PublicSubnet2
+      - PublicRouteTable
+      - VPC
+      - PublicRoute
+    Type: 'AWS::EC2::EIP'
+    
+  NATElasticIP3:
+    DependsOn:
+      - PublicSubnet2
+      - PublicRouteTable
+      - VPC
+      - PublicRoute
+    Type: 'AWS::EC2::EIP'
+  
+  NATGateway1:
+    DependsOn:
+      - PublicSubnet1
+      - PublicRouteTable
+      - VPC
+      - PublicRoute
+      - NATElasticIP1
+    Type: 'AWS::EC2::NatGateway'
+    Properties:
+      SubnetId: !Ref PublicSubnet1
+      AllocationId: !GetAtt NATElasticIP1.AllocationId
+      Tags:
+      - Key: Name
+        Value: !Sub "K8s NATGateway1 ${K8sClusterName}"
+      - Key: KubernetesCluster
+        Value: !Ref AWS::StackName
+        
+  NATGateway2:
+    DependsOn:
+      - PublicSubnet2
+      - PublicRouteTable
+      - VPC
+      - PublicRoute
+      - NATElasticIP2
+    Type: 'AWS::EC2::NatGateway'
+    Properties:
+      SubnetId: !Ref PublicSubnet2
+      AllocationId: !GetAtt NATElasticIP2.AllocationId
+      Tags:
+      - Key: Name
+        Value: !Sub "K8s NATGateway2 ${K8sClusterName}"
+      - Key: KubernetesCluster
+        Value: !Ref AWS::StackName
+        
+  NATGateway3:
+    DependsOn:
+      - PublicSubnet3
+      - PublicRouteTable
+      - VPC
+      - PublicRoute
+      - NATElasticIP3
+    Type: 'AWS::EC2::NatGateway'
+    Properties:
+      SubnetId: !Ref PublicSubnet3
+      AllocationId: !GetAtt NATElasticIP3.AllocationId
+      Tags:
+      - Key: Name
+        Value: !Sub "K8s NATGateway3 ${K8sClusterName}"
+      - Key: KubernetesCluster
+        Value: !Ref AWS::StackName
+
+  PrivateRouteTable1:
+    DependsOn:
+      - VPC
+      - PrivateSubnet1
+      - NATGateway1
+    Type: 'AWS::EC2::RouteTable'
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+      - Key: Name
+        Value: !Sub "K8s PrivateRouteTable1 ${K8sClusterName}"
+      - Key: KubernetesCluster
+        Value: !Ref AWS::StackName
+    
+  PrivateRoute1:
+    DependsOn:
+      - PrivateRouteTable1
+      - NATGateway1
+      - VPC
+      - PrivateSubnet1
+    Type: 'AWS::EC2::Route'
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable1
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NATGateway1
+      
+  PrivateRouteTable2:
+    DependsOn:
+      - VPC
+      - PrivateSubnet2
+      - NATGateway2
+    Type: 'AWS::EC2::RouteTable'
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+      - Key: Name
+        Value: !Sub "K8s PrivateRouteTable2 ${K8sClusterName}"
+      - Key: KubernetesCluster
+        Value: !Ref AWS::StackName
+    
+  PrivateRoute2:
+    DependsOn:
+      - PrivateRouteTable2
+      - VPC
+      - PrivateSubnet2
+      - NATGateway2
+    Type: 'AWS::EC2::Route'
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable2
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NATGateway2
+      
+  PrivateRouteTable3:
+    DependsOn:
+      - VPC
+      - PrivateSubnet3
+      - NATGateway1
+    Type: 'AWS::EC2::RouteTable'
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+      - Key: Name
+        Value: !Sub "K8s PrivateRouteTable3 ${K8sClusterName}"
+      - Key: KubernetesCluster
+        Value: !Ref AWS::StackName
+    
+  PrivateRoute3:
+    DependsOn:
+      - PrivateRouteTable3
+      - VPC
+      - PrivateSubnet3
+      - NATGateway1
+    Type: 'AWS::EC2::Route'
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable3
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NATGateway3
+  
+  PrivateSubnetRouteTableAssociation1:
+    DependsOn:
+      - PrivateRoute1
+      - PrivateRouteTable1
+      - PrivateSubnet1
+      - VPC
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      SubnetId: !Ref PrivateSubnet1
+      RouteTableId: !Ref PrivateRouteTable1
+  
+  PrivateSubnetRouteTableAssociation2:
+    DependsOn:
+      - PrivateRoute2
+      - PrivateRouteTable2
+      - PrivateSubnet2
+      - VPC
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      SubnetId: !Ref PrivateSubnet2
+      RouteTableId: !Ref PrivateRouteTable2
+      
+  PrivateSubnetRouteTableAssociation3:
+    DependsOn:
+      - PrivateRoute3
+      - PrivateRouteTable3
+      - PrivateSubnet3
+      - VPC
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      SubnetId: !Ref PrivateSubnet3
+      RouteTableId: !Ref PrivateRouteTable3
+  
+  BastionSecurityGroup:
+    DependsOn:
+      - VPC
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: '22'
+          ToPort: '22'
+          CidrIp: !Ref AdminIngressLocation
+        - IpProtocol: udp
+          FromPort: '1194'
+          ToPort: '1194'
+          CidrIp: !Ref AdminIngressLocation
+        - IpProtocol: -1
+          FromPort: -1
+          ToPort: -1
+          CidrIp: !Sub "${VPCIPv4CIDRBlock}/16"
+      VpcId: !Ref VPC
+      GroupDescription: Bastion Instance Security Group
+      GroupName : !Sub "K8s BastionSecurityGroup ${K8sClusterName}"
+  
+  K8sMasterAndNodeSecurityGroup:
+    DependsOn:
+      - VPC
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      SecurityGroupIngress:
+        - IpProtocol: -1
+          FromPort: -1
+          ToPort: -1
+          CidrIp: !Sub "${VPCIPv4CIDRBlock}/16"
+      VpcId: !Ref VPC
+      GroupDescription: Kubernetes Istances Security Group
+      GroupName : !Sub "K8s Master And Node ${K8sClusterName}"
+  
+  VPCEndPointS3:
+    Type: 'AWS::EC2::VPCEndpoint'
+    DependsOn:
+      - VPC
+      - PublicSubnetRouteTableAssociation1
+      - PublicSubnetRouteTableAssociation2
+      - PublicSubnetRouteTableAssociation3
+      - PublicRouteTable
+      - PrivateRouteTable1
+      - PrivateRouteTable2
+      - PrivateRouteTable3
+    Properties:
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action: '*'
+            Resource: '*'
+            Principal: '*'
+      RouteTableIds:
+        - !Ref PublicRouteTable
+        - !Ref PrivateRouteTable1
+        - !Ref PrivateRouteTable2
+        - !Ref PrivateRouteTable3
+      ServiceName: !Join  
+        - ''
+        - - com.amazonaws.
+          - !Ref 'AWS::Region'
+          - .s3
+      VpcId: !Ref VPC
+  
+  VPCEndPointDynamoDB:
+    Type: 'AWS::EC2::VPCEndpoint'
+    DependsOn:
+      - VPC
+      - PublicSubnet1
+      - PublicSubnet2
+      - PublicSubnet3
+      - PublicSubnetRouteTableAssociation1
+      - PublicSubnetRouteTableAssociation2
+      - PublicSubnetRouteTableAssociation3
+      - PublicRouteTable
+      - VPCEndPointS3
+      - PrivateRouteTable1
+      - PrivateRouteTable2
+      - PrivateRouteTable3
+    Properties:
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+        Statement:
+          - Effect: Allow
+            Action: '*'
+            Resource: '*'
+            Principal: '*'
+      RouteTableIds:
+        - !Ref PublicRouteTable
+        - !Ref PrivateRouteTable1
+        - !Ref PrivateRouteTable2
+        - !Ref PrivateRouteTable3
+      ServiceName: !Join 
+        - ''
+        - - com.amazonaws.
+          - !Ref 'AWS::Region'
+          - .dynamodb
+      VpcId: !Ref VPC
+  
+      
+########################################################
+# Bastion Configuration
+# keep bastion here because
+# for testing Bastion acts as
+# the NAT
+########################################################
+
+#create role
+  BastionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - ec2.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: "/"
+      Policies:
+      - PolicyName: S3FullAccess
+        PolicyDocument:
+          Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action: 's3:*'
+              Resource: '*'
+      - PolicyName: EC2FullAccess
+        PolicyDocument:
+          Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action: 'ec2:*'
+              Resource: '*'
+            - Effect: Allow
+              Action: 'ssm:*'
+              Resource: '*'
+            - Effect: Allow
+              Action: 'ec2messages:*'
+              Resource: '*'
+            - Effect: Allow
+              Action: 'elasticloadbalancing:*'
+              Resource: '*'
+            - Effect: Allow
+              Action: 'cloudwatch:*'
+              Resource: '*'
+            - Effect: Allow
+              Action: 'autoscaling:*'
+              Resource: '*'
+      - PolicyName: IAMFullAccess
+        PolicyDocument:
+          Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action: 'iam:*'
+              Resource: '*'
+      - PolicyName: R53FullAccess
+        PolicyDocument:
+          Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action: 
+              - 'route53:*'
+              - 'route53domains:*'
+              - 'cloudfront:ListDistributions'
+              - 'elasticbeanstalk:DescribeEnvironments'
+              - 'sns:ListTopics'
+              - 'sns:ListSubscriptionsByTopic'
+              Resource: '*'
+      - PolicyName: LogsFullAccess
+        PolicyDocument:
+          Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action: 'logs:*'
+              Resource: '*'
+      - PolicyName: ECRFullAccess
+        PolicyDocument:
+          Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action: 'ecr:*'
+              Resource: '*'
+  
+  BastionInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: "/"
+      Roles:
+      - !Ref BastionRole
+
+  BastionElasticIP:
+    DependsOn:
+      - VPC
+    Type: 'AWS::EC2::EIP'
+    
+
+  BastionHost:
+    Type: AWS::EC2::Instance
+    DependsOn: 
+    - BastionInstanceProfile
+    - VPC
+    - BastionSecurityGroup
+    - PublicSubnetRouteTableAssociation1
+    - PublicSubnetRouteTableAssociation2
+    - PublicSubnetRouteTableAssociation3
+    - PrivateSubnetRouteTableAssociation1
+    - PrivateSubnetRouteTableAssociation2
+    - PrivateSubnetRouteTableAssociation3
+    - BastionElasticIP
+    - PrivateSubnet1
+    - PrivateSubnet2
+    - PrivateSubnet3
+    - VPCEndPointS3
+    - VPCEndPointDynamoDB
+    Properties:
+      ImageId:
+        Fn::FindInMap:
+        - RegionMap
+        - Ref: AWS::Region
+        - 'Ubuntu1604'
+      InstanceType: !Ref Ec2BastionInstanceType
+      SourceDestCheck: false
+      NetworkInterfaces:
+      - AssociatePublicIpAddress: true
+        DeleteOnTermination: true
+        DeviceIndex: 0
+        SubnetId: !Ref PublicSubnet1
+        GroupSet:
+        - Ref: BastionSecurityGroup
+      Tags:
+      - Key: Name
+        Value: !Sub "K8s Bastion Host ${K8sClusterName}"
+      - Key: KubernetesCluster
+        Value: !Ref AWS::StackName
+      - Key: K8sBastionNumber
+        Value: K8sBastion-01
+      KeyName: !Ref Ec2KeyPairName
+      IamInstanceProfile: !Ref BastionInstanceProfile
+      BlockDeviceMappings:
+      - DeviceName: '/dev/sda1'
+        Ebs:
+          VolumeSize: 10
+          VolumeType: gp2
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash -xe
+
+          apt-get update
+          apt-get -y install python-setuptools python-pip openvpn mc zip git
+          pip install awscli boto boto3
+          easy_install https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-latest.tar.gz
+          
+          #install AWS SSM agent
+          mkdir -p /tmp/ssm
+          cd /tmp/ssm
+          wget https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/debian_amd64/amazon-ssm-agent.deb
+          dpkg -i amazon-ssm-agent.deb
+          systemctl enable amazon-ssm-agent
+          systemctl start amazon-ssm-agent
+          
+          touch /tmp/init-kops.log
+          
+          #start cfn service
+          /usr/local/bin/cfn-init -v --stack ${AWS::StackId} --resource BastionHost --region ${AWS::Region}
+          /usr/local/bin/cfn-signal -e $? --stack ${AWS::StackId} --resource BastionHost --region ${AWS::Region}
+          
+          EIP_LIST=${BastionElasticIP}
+          CLOUDWATCHGROUP=K8s-Bastion-${K8sClusterName}
+    
+    Metadata:
+      AWS::CloudFormation::Init:
+        configSets:
+          default: 
+          - config-cfn-hup
+        config-cfn-hup:
+          files:
+            #cfn-hup configuration 
+            '/etc/cfn/cfn-hup.conf':
+              content: !Sub |
+                [main]
+                stack=${AWS::StackId}
+                region=${AWS::Region}
+                interval=1
+            '/etc/cfn/hooks.d/cfn-auto-reloader.conf':
+              content: !Sub |
+                [cfn-auto-reloader-hook]
+                triggers=post.update
+                path=Resources.BastionHost.Metadata.AWS::CloudFormation::Init
+                action=/usr/local/bin/cfn-init -v --stack ${AWS::StackId} --resource BastionHost --region ${AWS::Region}
+            #systemd service 
+            '/etc/systemd/system/cfn-hup.service': 
+              content: |
+                [Unit]
+                Description=Cloud formation helper daemon
+
+                [Service]
+                ExecStart=/usr/local/bin/cfn-hup
+                Restart=always
+                Type=simple
+
+                [Install]
+                WantedBy=multi-user.target
+            '/opt/bastion-init-host.sh':
+              mode: '000755'
+              owner: "root"
+              group: "root"
+              content: !Sub |
+                #!/bin/bash
+                
+                cd /opt
+                mkdir -p /opt/bastion-init
+                cd /opt/bastion-init
+                
+                aws ec2 create-tags --resources $instance_id --tags Key=BASTION-awslogs,Value=K8s-Bastion-${K8sClusterName} --region ${AWS::Region}
+                aws s3 sync s3://${S3BootstrapBucketName}/${S3BootstrapBucketPrefix}/bootstrap/ ./ --region ${AWS::Region} --quiet
+                
+                chmod +x ./*.sh
+                chmod +x ./*.py
+                ./02-init-bastion-host.sh ${S3BootstrapBucketName} ${S3BootstrapBucketPrefix} ${AWS::Region} ${VPCIPv4CIDRBlock}
+                exit 0
+
+
+            '/opt/bastion-init-kops.sh':
+              mode: '000755'
+              owner: "root"
+              group: "root"
+              content: !Sub |
+                #!/bin/bash
+
+                cd /opt
+                mkdir -p /opt/kops-state
+                mkdir -p /opt/kops-config
+                cd /opt/bastion-init
+                
+                ./04-init-kops.sh ${AWS::Region} ${K8sClusterName} "NONE" ${Ec2K8sMasterInstanceType} ${Ec2K8sNodeInstanceType} ${Ec2K8sNodeCapacityMin} ${Ec2K8sNodeCapacityMax} ${Ec2EBSK8sDiskSizeGb} ${Ec2K8sAMIOsType} "true" ${PrivateSubnet1} ${PrivateSubnet2} ${VPC} "${VPCIPv4CIDRBlock}/16" ${K8sMasterAndNodeSecurityGroup} ${AWS::StackName} ${S3BootstrapBucketName} ${S3BootstrapBucketPrefix} "${KubernetesDashboard}" "${KubernetesHeapsterMonitoring}" "NONE" "${KubernetesClusterAutoscaler}" "${PrivateSubnet3}" "${PublicSubnet1}" "${PublicSubnet2}" "${PublicSubnet3}" "${KubernetesAPIPublicAccess}"
+                
+                exit 0
+                
+            '/opt/bastion-init-finish.sh':
+              mode: '000755'
+              owner: "root"
+              group: "root"
+              content: !Sub |
+                #!/bin/bash
+                
+                chown -R ubuntu:ubuntu /opt
+                chmod -R og+rX /opt
+                
+                chown -R ubuntu:ubuntu /home/ubuntu
+                exit 0
+                
+            '/opt/delete-kops-cluster.sh':
+              mode: '000755'
+              owner: "root"
+              group: "root"
+              content: !Sub |
+                #!/bin/bash
+                
+                cd /opt/bastion-init
+                ./tear-down-cluster.sh ${AWS::Region}
+          
+          commands:
+            "00-enable-cfn-hup":
+              command: "systemctl enable cfn-hup.service"
+            "01-start-cfn-hup":
+              command: "systemctl start cfn-hup.service" 
+            "02-init-bastion-host":
+              command: "/opt/bastion-init-host.sh"
+            "04-init-kops":
+              command: "/opt/bastion-init-kops.sh >> /tmp/init-kops.log 2>&1"
+            "05-init-finish":
+              command: "/opt/bastion-init-finish.sh"
+    CreationPolicy:
+      ResourceSignal:
+        Timeout: PT60M
+
+
+  # This is a CloudWatch alarm https://aws.amazon.com/cloudwatch/
+  # If the Bastion node is unresponsive for 5 minutes, AWS will attempt to recover it
+  BastionRecoveryTestAlarm:
+    Type: AWS::CloudWatch::Alarm
+    DependsOn:
+      - PublicSubnet1
+      - PublicRouteTable
+      - VPC
+      - PublicRoute
+      - BastionHost
+    Properties:
+      AlarmDescription: Trigger a recovery when instance status check fails for 15
+        consecutive minutes.
+      Namespace: AWS/EC2
+      MetricName: StatusCheckFailed_System
+      Statistic: Minimum
+      # 300-second periods (5 minute)
+      Period: '300'
+      # 5-minute check-ins
+      EvaluationPeriods: '3'
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: '0'
+      # This is the call that actually tries to recover the instance
+      AlarmActions:
+        - !Sub "arn:aws:automate:${AWS::Region}:ec2:recover"
+      # Applies this alarm to our K8sMasterInstance
+      Dimensions:
+      - Name: InstanceId
+        Value: !Ref BastionHost
+        
+###############################################
+# Lambda function for graceful tear-down of KOPS by AWS SSM
+###############################################
+
+  # IAM role for Lambda function for generating kubeadm token
+  LambdaGracefulTearDownRole:
+    Type: "AWS::IAM::Role"
+    DependsOn:
+      - VPC
+      - BastionHost
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+        - Effect: "Allow"
+          Principal:
+            Service: ["lambda.amazonaws.com"]
+          Action: "sts:AssumeRole"
+      Path: "/"
+      Policies:
+      - PolicyName: "lambda_ssm_policy"
+        PolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+          - Effect: "Allow"
+            Action:
+              - "logs:CreateLogGroup"
+              - "logs:CreateLogStream"
+              - "logs:PutLogEvents"
+            Resource: "arn:aws:logs:*:*:*"
+          - Effect: "Allow"
+            Action:
+              - 'ssm:DescribeAssociation'
+              - 'ssm:GetDeployablePatchSnapshotForInstance'
+              - 'ssm:GetCommandInvocation'
+              - 'ssm:GetDocument'
+              - 'ssm:GetManifest'
+              - 'ssm:GetParameters'
+              - 'ssm:ListAssociations'
+              - 'ssm:ListInstanceAssociations'
+              - 'ssm:PutInventory'
+              - 'ssm:PutComplianceItems'
+              - 'ssm:PutConfigurePackageResult'
+              - 'ssm:UpdateAssociationStatus'
+              - 'ssm:UpdateInstanceAssociationStatus'
+              - 'ssm:UpdateInstanceInformation'
+            Resource: "*"
+          - Effect: "Allow"
+            Action:
+              - 'ssm:SendCommand'
+            Resource: 
+              - !Sub "arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/${BastionHost}"
+              - !Sub "arn:aws:ssm:${AWS::Region}::document/AWS-RunShellScript"
+          - Effect: Allow
+            Action:
+              - 'ec2messages:AcknowledgeMessage'
+              - 'ec2messages:DeleteMessage'
+              - 'ec2messages:FailMessage'
+              - 'ec2messages:GetEndpoint'
+              - 'ec2messages:GetMessages'
+              - 'ec2messages:SendReply'
+            Resource: '*'
+          - Effect: Allow
+            Action: 's3:*'
+            Resource: "*"
+          - Effect: Allow
+            Action:
+              - 'ec2:DescribeSecurityGroups'
+              - 'ec2:AuthorizeSecurityGroupIngress'
+              - 'ec2:RevokeSecurityGroupIngress'
+              - 'ec2:AuthorizeSecurityGroupEgress'
+              - 'ec2:RevokeSecurityGroupEgress'
+              - 'ec2:DescribeTags'
+              - 'ec2:DescribeVpcs'
+              - 'ec2:DescribeAvailabilityZones'
+              - 'ec2:DescribeSubnets'
+              - 'ec2:DescribeInternetGateways'
+              - 'ec2:DescribeEgressOnlyInternetGateways'
+              - 'ec2:DescribeNatGateways'
+              - 'ec2:DescribeRouteTables'
+              - 'ec2:DescribeAddresses'
+              - 'ec2:DescribeNetworkAcls'
+              - 'ec2:DescribeInstances'
+              - 'ec2:DescribeNetworkInterfaces'
+              - 'ec2:AttachNetworkInterface'
+              - 'ec2:CreateNetworkInterface'
+              - 'ec2:DescribeNetworkInterfaceAttribute'
+              - 'ec2:DescribeNetworkInterfaces'
+              - 'ec2:DetachNetworkInterface'
+              - 'ec2:ModifyNetworkInterfaceAttribute'
+              - 'ec2:ResetNetworkInterfaceAttribute'
+              - 'ec2:DeleteNetworkInterface'
+            Resource: '*'
+
+
+  # Lambda Function for graceful kops teardown
+  LambdaGracefulTearDown:
+    Type: "AWS::Lambda::Function"
+    DependsOn:
+      - BastionHost
+      - LambdaGracefulTearDownRole
+    Properties:
+      Code:
+        ZipFile: !Sub |
+          import sys
+          import boto3
+          import cfnresponse
+          import time
+          
+          ssm_exit_statuses=['Success']
+          ssm = boto3.client('ssm', region_name="${AWS::Region}")
+          
+          def ssm_del_k8scluster():
+            instanceID="${BastionHost}"
+            
+            response = ssm.send_command(
+                InstanceIds=[
+                    instanceID
+                ],
+                DocumentName='AWS-RunShellScript',
+                Comment='Graceful tear down Kubernetes / KOPS resources created in CFN template',
+                Parameters={
+                    'commands': [
+                        '/opt/delete-kops-cluster.sh'
+                    ]
+                }
+            )
+            return response
+          
+          def handler(event, context):
+            if event['RequestType'] == 'Delete':
+              r=ssm_del_k8scluster()
+              #print r
+              print time.ctime()
+              commandID=r.get('Command').get('CommandId')
+              print commandID
+              time.sleep(5)
+              for _ in xrange(80):
+                  try:
+                      response = ssm.get_command_invocation(
+                          CommandId=commandID,
+                          InstanceId=instanceID
+                      )
+                      ssm_status=response.get('Status')
+                      print "-----"
+                      print ssm_status
+                      print time.ctime()
+                      if ssm_status in ssm_exit_statuses:
+                         print "SSM Command Finished."
+                         break
+                      time.sleep(3)
+                  except Exception,e:
+                      print e
+                      time.sleep(3)
+                      pass
+              time.sleep(30)
+              cfnresponse.send(event, context, cfnresponse.SUCCESS, {})
+              return {"Delete":"OK"}
+            if event['RequestType'] == 'Create':
+              cfnresponse.send(event, context, cfnresponse.SUCCESS, {})
+              return {"Create":"OK"}
+              
+      Handler: "index.handler"
+      Runtime: "python2.7"
+      Timeout: "300"
+      Role: !GetAtt LambdaGracefulTearDownRole.Arn
+
+  # A Custom CFN resource that uses the lambda function to invoke SSM
+  LambdaCustomResource:
+    Type: "Custom::CustomResourceType"
+    DependsOn:
+      - BastionHost
+      - LambdaGracefulTearDownRole
+      - LambdaGracefulTearDown
+    Version: "1.0"
+    Properties:
+      ServiceToken: !GetAtt LambdaGracefulTearDown.Arn
+      
+
+Outputs:
+  VPCID:
+    Value: !Ref VPC
+    Description: Created VPC ID
+
+  BastionHostPublicIp:
+    Description: IP Address of the Bastion Host. Use SSH ubuntu@BastionIP to control the cluster.
+    Value: !Sub ${BastionHost.PublicIp}
+
+  KubectlAndKopsConfigs:
+    Description: Get Kubernetes / KOPS configuartion to local machine. More in documentation.
+    Value: !Sub >-
+      SSH_KEY="path/to/${Ec2KeyPairName}";
+      scp
+      -i $SSH_KEY
+      ubuntu@${BastionHost.PublicIp}:/opt/kops-state/KOPS_* ./
+  
+  AWSLogs:
+    Description: Get logs from Kubernetes Docker contaners and Bastion host bootstrap.
+    Value: !Sub >-
+      Bastionhost - K8s-Bastion-${K8sClusterName}
+      Dcoker containers - K8s-ALL-Docker-Logs-${K8sClusterName}
+
