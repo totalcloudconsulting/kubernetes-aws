@@ -34,7 +34,4 @@ Combination of AWS Systems Manager (SSM) and AWS Lambda help with graceful clust
 https://console.aws.amazon.com/cloudformation/home?region=eu-west-1#/stacks/new?stackName=Total-Cloud-Kubernetes&templateURL=https://s3-eu-west-1.amazonaws.com/tc2-kubernetes/latest/cfn-templates/latest.yaml
 
 
-#Detailed documentation
-
-TBD: link here
 
