@@ -9,7 +9,7 @@ Combination of AWS Systems Manager (SSM) and AWS Lambda help with graceful clust
 
 # Architecture
 
-[![N|Solid](https://cldup.com/dTxpPi9lDf.thumb.png)](https://nodesource.com/products/nsolid)
+[![N|Solid](https://github.com/totalcloudconsulting/kubernetes-aws/blob/master/docs/k8s-fullscale.png)](https://tc2.hu)
 
 
 # Resources
@@ -29,7 +29,7 @@ Combination of AWS Systems Manager (SSM) and AWS Lambda help with graceful clust
 * 1 Route53 private zone for VPC
 
 
-# One-Click Launch:
+# One-Click AWS Launch (new VPC):
 
 https://console.aws.amazon.com/cloudformation/home?region=eu-west-1#/stacks/new?stackName=Total-Cloud-Kubernetes&templateURL=https://s3-eu-west-1.amazonaws.com/tc2-kubernetes/latest/cfn-templates/latest.yaml
 
