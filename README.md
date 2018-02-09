@@ -1,6 +1,6 @@
 # Production grade Kubernetes deployment on AWS Cloud
 
-This AWS CloudFormation template and sripts sets up a flexible, secure, fault-tolerant AWS environment and launches a Kubernetes cluster automatically into a configuration of your choice.
+This AWS CloudFormation template and scripts sets up a flexible, secure, fault-tolerant AWS environment and launches a Kubernetes cluster automatically into a configuration of your choice.
 
 We created the project to show how easy to deploy a highly available, fault tolerant, full-scale Kubernetes environment on Amazon Web Services (AWS) Cloud, using Kubernetes Operations (kops) and AWS CloudFormation (CFN) templates together that automate the process. The final result is 100% Kubernetes (and "kops") compatible deployment, what you can manage from either the Bastion host or HTTPS API endpoint remotely.
 
