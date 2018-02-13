@@ -6,12 +6,12 @@ We created the project to show how easy to deploy a highly available, fault tole
 
 We use the popular tool "kops" because it is the easiest and most elegant way to get a production grade Kubernetes cluster up and running. We keep focus on security and transparency for the whole deployment process. The guide is for IT architects, administrators, and DevOps professionals who are planning to implement  their Kubernetes workloads on AWS.
 
-Combination of AWS Systems Manager (SSM) and AWS Lambda help with graceful cluster tear-down. 
+Combination of AWS Systems Manager (SSM) and AWS Lambda help with graceful cluster tear-down.
 
 
 # Architecture
 
-[![N|Solid](https://github.com/totalcloudconsulting/kubernetes-aws/blob/master/docs/k8s-fullscale.png)](https://tc2.hu)
+[![N|Solid](docs/k8s-fullscale.png)](https://tc2.hu)
 
 
 # Resources deployed
@@ -20,7 +20,7 @@ Combination of AWS Systems Manager (SSM) and AWS Lambda help with graceful clust
 * three NAT gateways in each public subnet in each 3 Availability Zones
 * three  self-healing Kubernetes Master instances in each Availability Zone's private subnet AutoScaling group (separate ASGs)
 * three Node instances in AutoScalinn groups,  in each Availability Zone (one ASG)
-* one self-healing Bastion host in 1 Availability Zone's public subnet, fixed Ubuntu 16.04 LTS, 
+* one self-healing Bastion host in 1 Availability Zone's public subnet, fixed Ubuntu 16.04 LTS,
 * four Elastic IP Addresses: 3 for NAT Gateways, 1 for Bastion host
 * one internal or public ELB load balancer for HTTPS access to the Kubernetes API
 * two CloudWatch Logs group for Bastion hosts and Kubernetes Docker images
@@ -37,7 +37,7 @@ Combination of AWS Systems Manager (SSM) and AWS Lambda help with graceful clust
 
 * Launch the [CloudFormation template](https://console.aws.amazon.com/cloudformation/home?region=eu-west-1#/stacks/new?stackName=Total-Cloud-Kubernetes&templateURL=https://s3-eu-west-1.amazonaws.com/tc2-kubernetes/latest/cfn-templates/latest.yaml )] into a new VPC, if you want to build a new AWS infrastructure. [View template](https://s3-eu-west-1.amazonaws.com/tc2-kubernetes/latest/cfn-templates/latest.yaml)
 
-* Test the Kubernetes cluster by following the step-by-step instructions in the deployment guide. 
+* Test the Kubernetes cluster by following the step-by-step instructions in the deployment guide.
 
 To customize your deployment, you can choose different instance types for the Kubernetes cluster and the bastion host, choose the number of worker nodes, APi endpoint, install plug-ins.  
 
@@ -48,13 +48,14 @@ For detailed instructions, see the deployment guide.
 
 [AWS One-Click CloudFormation Stack](https://console.aws.amazon.com/cloudformation/home?region=eu-west-1#/stacks/new?stackName=Total-Cloud-Kubernetes&templateURL=https://s3-eu-west-1.amazonaws.com/tc2-kubernetes/latest/cfn-templates/latest.yaml )
 
+# Abstract paper
+
+Have a look at [this abstract paper](docs/TC2_Abstratct_production_grade_Kubernetes_deployment_on_AWS.pdf) for the high level details of this solution.
 
 # Visit us
 
-https://totalcloudconsulting.hu/en/solutions 
+https://totalcloudconsulting.hu/en/solutions
 
 # Costs and licenses
 
 You are responsible for the cost of the AWS services used while running this deployment.
-
-
