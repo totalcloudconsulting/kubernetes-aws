@@ -175,6 +175,7 @@ k8sclustername="${K8sClusterName}.${K8sRoute53ZoneName}"
 api_lb_type="--api-loadbalancer-type=internal"
 dns_zone="--dns-zone=${K8sRoute53ZoneName}"
 dns="--dns=private"
+
 if [[ "${KubernetesAPIPublicAccess}" == "true" ]];
 then
   echo "K8s API LB is Public, using Gossip DNS configuration ..."
@@ -182,6 +183,8 @@ then
   dns_zone=""
   dns=""
   k8sclustername="${K8sClusterName}.k8s.local"
+else
+  echo "K8s internal DNS zone is: ${K8sRoute53ZoneName}"
 fi 
 
 # set env variables
