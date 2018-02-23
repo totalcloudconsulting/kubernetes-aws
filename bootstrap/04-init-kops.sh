@@ -203,7 +203,7 @@ aws ec2 create-tags --resources ${instance_id} --tags Key=KOPS-state-store-bucke
 #create private zone only if api set to internal
 if [[ "${KubernetesAPIPublicAccess}" == "false" ]];
 then
-  aws route53 create-hosted-zone --name ${K8sRoute53ZoneName} --vpc VPCRegion=${AWSRegion},VPCId=${VPC} --hosted-zone-config Comment="K8sPrivateZone",PrivateZone=true --region ${AWSRegion} --caller-reference "`date`" --output text | grep "hostedzone/" | grep "https://route53.amazonaws.com" | cut -d '/' -f 6 > /opt/kops-state/KOPS_R53_PRIVATE_HOSTED_ZONE
+  aws route53 create-hosted-zone --name ${K8sRoute53ZoneName} --vpc VPCRegion=${AWSRegion},VPCId=${VPC} --hosted-zone-config Comment="K8sPrivateZone",PrivateZone=true --region ${AWSRegion} --caller-reference "`date`" --output text | grep "hostedzone/" | grep "https://route53.amazonaws.com" | cut -d '/' -f 6 > /opt/kops-state/KOPS_R53_PRIVATE_HOSTED_ZONE_ID
 fi
 
 #create kops config
