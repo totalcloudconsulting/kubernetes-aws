@@ -9,6 +9,7 @@ We use the popular tool "kops" because it is the easiest and most elegant way to
 Combination of AWS Systems Manager (SSM) and AWS Lambda help with graceful cluster tear-down.
 
 
+
 # Architecture
 
 [![N|Solid](docs/k8s-fullscale.png)](https://tc2.hu)
@@ -37,6 +38,8 @@ Combination of AWS Systems Manager (SSM) and AWS Lambda help with graceful clust
 
 * Launch the [CloudFormation template](https://console.aws.amazon.com/cloudformation/home?region=eu-west-1#/stacks/new?stackName=Total-Cloud-Kubernetes&templateURL=https://s3-eu-west-1.amazonaws.com/tc2-kubernetes/latest/cfn-templates/latest.yaml )] into a new VPC, if you want to build a new AWS infrastructure. [View template](https://s3-eu-west-1.amazonaws.com/tc2-kubernetes/latest/cfn-templates/latest.yaml)
 
+The cluster (via bastion host) creation lasts around 10 minutes, please be patient.
+
 * Test the Kubernetes cluster by following the step-by-step instructions in the deployment guide.
 
 To customize your deployment, you can choose different instance types for the Kubernetes cluster and the bastion host, choose the number of worker nodes, APi endpoint, install plug-ins.  
@@ -47,6 +50,14 @@ For detailed instructions, see the deployment guide.
 # One-Click AWS Launch (new VPC)
 
 [AWS One-Click CloudFormation Stack](https://console.aws.amazon.com/cloudformation/home?region=eu-west-1#/stacks/new?stackName=Total-Cloud-Kubernetes&templateURL=https://s3-eu-west-1.amazonaws.com/tc2-kubernetes/latest/cfn-templates/latest.yaml )
+
+The cluster (via bastion host) creation lasts around 10 minutes, please be patient.
+
+**After the clutser has been created, just connect to the bastion host via SSH, the "kops", "kubectl" and "helm" commands working out-of-the box, no extras steps needed!**
+
+# Logs
+
+ALL container logs sent to AWS CloudWatch Logs. Logs aren't  available internally via API (e.g. kubectl logs ... command: "Error response from daemon: configured logging driver does not support reading") Please check the AWS CloudWatch / Logs / K8s* for container logs.
 
 # Abstract paper
 

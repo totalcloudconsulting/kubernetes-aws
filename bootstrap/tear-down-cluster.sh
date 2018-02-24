@@ -10,12 +10,20 @@ export AWS_DEFAULT_REGION=${AWSRegion}
 
 kops export kubecfg --name $KOPS_CLUSTER_NAME
 
+ingress=""
 #delete ingresses
 for i in `kubectl get ingress -o yaml | grep "name:" | grep -v hostname | awk '{print $2}'`; 
 do 
   echo "Delete ingress: $i..."; 
   kubectl delete ingress $i --force;
+  ingress="YES"
 done
+
+#wait for target group deletion, it is async wait to remove ALB target groups
+if [[ "${ingress}" == "YES" ]];
+then
+  sleep 60
+fi
 
 #delete cluster
 kops delete cluster --name $KOPS_CLUSTER_NAME --yes >> /tmp/init-kops.log 2>&1

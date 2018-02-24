@@ -1119,7 +1119,7 @@ Resources:
         - Ref: BastionSecurityGroup
       Tags:
       - Key: Name
-        Value: !Sub "K8s Bastion Host ${K8sClusterName}"
+        Value: !Sub "k8s bastion host ${K8sClusterName}"
       - Key: KubernetesCluster
         Value: !Ref AWS::StackName
       - Key: K8sBastionNumber

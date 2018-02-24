@@ -38,7 +38,7 @@ if [[ ! -e /usr/local/bin/kops ]];
 then 
   echo "Download latest KOPS...";
   #wget -O kops https://github.com/kubernetes/kops/releases/download/$(curl -s https://api.github.com/repos/kubernetes/kops/releases/latest | grep tag_name | cut -d '"' -f 4)/kops-linux-amd64 --no-verbose
-  wget -O kops https://github.com/kubernetes/kops/releases/download/1.8.0/kops-linux-amd64 --no-verbose
+  wget -O kops https://github.com/kubernetes/kops/releases/download/1.8.1/kops-linux-amd64 --no-verbose
   sudo mv ./kops /usr/local/bin/
 fi
 
@@ -373,7 +373,7 @@ then
   #RH certpath: /etc/pki/ca-trust/extracted/openssl/ca-bundle.trust.crt
 
   CLOUD_PROVIDER=aws
-  IMAGE=gcr.io/google_containers/cluster-autoscaler:v1.1.0
+  IMAGE=gcr.io/google_containers/cluster-autoscaler:v1.0.3
   MIN_NODES=${Ec2K8sNodeCapacityMin}
   MAX_NODES=${Ec2K8sNodeCapacityMax}
   AWS_REGION=${AWSRegion}
