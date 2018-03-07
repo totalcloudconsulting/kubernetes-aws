@@ -7,7 +7,7 @@ We provide two deployment versions with the same underlying AWS VPC toplogy:
 * full scale: fault tolerant, production grade architecture (multi master, multi node, NAT gateways),
 * small footprint: single master, single NAT instance, single node deployment (for testing, demo, first steps)
 
-Originally we created this project to make easy to deploy a working Kubernetes cluster on Amazon Web Services (AWS) Cloud, now it supports full-scale, prouction grade setup as well. The Kubernetes Operations ("kops") project and AWS CloudFormation (CFN) templates togedther with bootstrap scripts, the whole process has automated. The final result is a Kubernetes cluster, with Kops compatibility, what you can manage from either the Bastion host, via OpenVPN or using HTTPS API through AWS ELB endpoint.
+The Kubernetes Operations ("kops") project and AWS CloudFormation (CFN) templates togedther with bootstrap scripts, help to automate the whole process. The final result is a 100% Kubernetes cluster, with 100% Kops compatibility, what you can manage from either the Bastion host, via OpenVPN or using HTTPS API through AWS ELB endpoint.
 
 The project keeps focus on security, transparency and simplicity. This guide is mainly created for developers, IT architects, administrators, and DevOps professionals who are planning to implement their Kubernetes workloads on AWS.
 
@@ -95,6 +95,15 @@ Have a look at [this abstract paper](docs/TC2_Abstratct_production_grade_Kuberne
 # Visit us
 
 https://totalcloudconsulting.hu/en/solutions
+
+# References
+
+* Kubernetes Open-Source Documentation: https://kubernetes.io/docs/
+* Calico Networking: http://docs.projectcalico.org/
+* KOPS documentation: https://github.com/kubernetes/kops/blob/master/docs/aws.md ,  https://github.com/kubernetes/kops/tree/master/docs
+* Kubernetes Host OS versions: https://github.com/kubernetes/kops/blob/master/docs/images.md
+* OpenVPN: https://github.com/tatobi/easy-openvpn
+* Heptio Kubernetes Quick Start guide: https://aws.amazon.com/quickstart/architecture/heptio-kubernetes/
 
 # Costs and licenses
 
