@@ -2,7 +2,7 @@
 
 These AWS CloudFormation templates and scripts set up a flexible, secure, fault-tolerant Kubernetes cluster in AWS private VPC environment automatically, into a configuration of your choice. The project main purposes are: simple, painless, script-less, easy Kubernetes environment deployment in 1 step.
 
-We provide two deployment version with the same underlying private VPC toplogy:
+We provide two deployment versions with the same underlying AWS VPC toplogy:
 
 * full scale: fault tolerant, production grade architecture (multi master, multi node, NAT gateways),
 * small footprint: single master, single NAT instance, single node deployment (for testing, demo, first steps)
@@ -17,9 +17,7 @@ The project keeps focus on security, transparency and simplicity. This guide is 
 
 [![N|Solid](docs/k8s-fullscale.png)](https://totalcloudconsulting.hu/en/solutions/containerization)
 
-# One-Click AWS Launch (new VPC)
-
-[AWS One-Click CloudFormation Stack: Full scale](https://console.aws.amazon.com/cloudformation/home?region=eu-west-1#/stacks/new?stackName=Total-Cloud-K8s-Full&templateURL=https://s3-eu-west-1.amazonaws.com/tc2-kubernetes/latest/cfn-templates/latest.yaml )
+[One-Click launch CloudFormation Stack: Full scale](https://console.aws.amazon.com/cloudformation/home?region=eu-west-1#/stacks/new?stackName=Total-Cloud-K8s-Full&templateURL=https://s3-eu-west-1.amazonaws.com/tc2-kubernetes/latest/cfn-templates/latest.yaml )
 
 # Resources deployed
 
@@ -42,9 +40,8 @@ The project keeps focus on security, transparency and simplicity. This guide is 
 
 [![N|Solid](docs/k8s-small-footprint.png)](https://totalcloudconsulting.hu/en/solutions/containerization)
 
-# One-Click AWS Launch (new VPC)
 
-[AWS One-Click CloudFormation Stack: Small footptint](https://console.aws.amazon.com/cloudformation/home?region=eu-west-1#/stacks/new?stackName=Total-Cloud-K8s-Small&templateURL=https://s3-eu-west-1.amazonaws.com/tc2-kubernetes/latest/cfn-templates/latest-single-natinstance.yaml )
+[One-Click launch CloudFormation Stack: Small footptint](https://console.aws.amazon.com/cloudformation/home?region=eu-west-1#/stacks/new?stackName=Total-Cloud-K8s-Small&templateURL=https://s3-eu-west-1.amazonaws.com/tc2-kubernetes/latest/cfn-templates/latest-single-natinstance.yaml )
 
 # Resources deployed
 
