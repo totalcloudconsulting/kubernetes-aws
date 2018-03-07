@@ -1,0 +1,17 @@
+#!/bin/bash
+
+#
+# Build a root certificate
+#
+
+source ./vars
+
+if [[ -e $KEY_DIR/ca.crt ]];
+then
+    echo "WARNING: CA cert already exists! Exit."
+    exit 1
+fi
+
+
+export EASY_RSA="${EASY_RSA:-.}"
+"$EASY_RSA/pkitool" --initca $*

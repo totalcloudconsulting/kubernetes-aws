@@ -1,0 +1,17 @@
+#!/usr/bin/awk -f
+#
+# Take a PEM format file as input and split out certs and keys into separate files
+# added TA keys spolitter by Tobi
+# Copyright, original file: https://gist.github.com/jinnko/d6867ce326e8b6e88975
+
+
+BEGIN                          { n=0; cert=0; key=0; if ( ARGC < 2 ) { print "Usage: pem-split FILENAME"; exit 1 } }
+/-----BEGIN PRIVATE KEY-----/  { key=1; cert=0 }
+/-----BEGIN OpenVPN Static key V1-----/  { key=1; cert=0 }
+/-----BEGIN CERTIFICATE-----/  { cert=1; key=0 }
+split_after == 1               { n++; split_after=0 }
+/-----END CERTIFICATE-----/    { split_after=1 }
+/-----END PRIVATE KEY-----/    { split_after=1 }
+/-----END OpenVPN Static key V1-----/    { split_after=1 }
+key == 1                       { print > FILENAME "-" n ".key" }
+cert == 1                      { print > FILENAME "-" n ".crt" }

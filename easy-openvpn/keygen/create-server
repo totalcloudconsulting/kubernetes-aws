@@ -1,0 +1,42 @@
+#!/bin/bash
+
+source ./vars
+
+if [[ -e $KEY_DIR/server.key ]];
+then
+    echo "WARNING: server key already exists! Exit."
+    exit 1
+fi
+
+mkdir -p $KEY_DIR
+chmod og+X $KEY_DIR
+
+mkdir -p $OPENVPN_CONF_DIR/ccd
+chmod og+X $OPENVPN_CONF_DIR/ccd
+
+mkdir "$KEY_DIR"
+chmod go-rwx "$KEY_DIR"
+chmod og+rX "$KEY_DIR"
+touch "$KEY_DIR/index.txt"
+echo 01 >"$KEY_DIR/serial"
+
+
+./build-ca
+./build-key-server server
+./build-dh
+./build-ta
+./build-crl-revoke
+
+mkdir -p $OPENVPN_LOG_DIR
+chown nobody:root $OPENVPN_LOG_DIR
+chmod -R og+rwX $OPENVPN_LOG_DIR
+
+cp server-template.conf $OPENVPN_CONF_DIR/server.conf
+sed -i 's/CHANGE_PORT/'$SERVER_PORT_UDP'/g'  $OPENVPN_CONF_DIR/server.conf
+cp server-startup-template.sh $OPENVPN_CONF_DIR/server-startup.sh
+
+
+echo "###########################"
+echo "DONE, START:"
+echo "service openvpn@server start"
+echo "###########################"

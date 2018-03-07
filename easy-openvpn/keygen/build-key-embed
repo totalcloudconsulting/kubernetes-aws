@@ -1,0 +1,48 @@
+#!/bin/bash
+
+#
+# Similar to build-key, but protect the private key
+# with a password and tar.gz keys into user dir
+#
+
+source ./vars
+
+if test $# -ne 1; then
+        echo "usage: build-key <name>";
+        exit 1
+fi
+
+if test $KEY_DIR; then
+	cd $KEY_DIR
+	if [[ -e $1/$1.key && -d $1 ]];
+	then
+		echo "This key already exist. Try other name! Exit."
+		exit 1
+	fi
+	export EASY_RSA="${EASY_RSA:-.}"
+	"$EASY_RSA/pkitool" $*
+	chmod 0600 $1.key && \
+	mkdir $1 && \
+	mv $1.* $1/ && \
+	rm $1/*.csr && \
+	cp $1/$1.crt c-tmp.crt && \
+	$OPENVPN_CONF_DIR/keygen/pem-split c-tmp.crt && \
+	$OPENVPN_CONF_DIR/keygen/pem-split ta.key && \
+	cp $1/$1.key c-tmp.key && \
+	cp ca.crt $1/ && \
+	cp ta.key $1/$1.ta.key && \
+	sed 's/CHANGE_SERVER/'$SERVER_ENDPOINT'/g' $OPENVPN_CONF_DIR/keygen/client-template-embed.ovpn > $1/$1.ovpn && \
+	sed -i 's/CHANGE_PORT/'$SERVER_PORT_UDP'/g'  $1/$1.ovpn && \
+	perl -i -p0e 's/CHANGE_TA_KEY_BODY\n/`cat ta.key-0.key`/se' $1/$1.ovpn && \
+	perl -i -p0e 's/CHANGE_CA_CRT_BODY\n/`cat ca.crt`/se' $1/$1.ovpn && \
+	perl -i -p0e 's/CHANGE_CLIENT_CERT_BODY\n/`cat c-tmp.crt-0.crt`/se' $1/$1.ovpn && \
+	perl -i -p0e 's/CHANGE_CLIENT_KEY_BODY\n/`cat c-tmp.key`/se' $1/$1.ovpn && \
+	rm -f c-tmp.* && \
+	cp $OPENVPN_CONF_DIR/keygen/ccd $OPENVPN_CONF_DIR/ccd/$1
+	cd $1
+	zip $1.zip ./$1.ovpn
+	echo "########################"
+	echo "DONE. DOWNLOAD EMBED KEY+CONF: $OPENVPN_CONF_DIR/keys/$1/$1.zip"
+else
+	echo "you must define KEY_DIR"
+fi

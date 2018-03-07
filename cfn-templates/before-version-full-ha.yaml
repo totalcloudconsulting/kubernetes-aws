@@ -1,12 +1,12 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: 
-  AWS Kubernetes (K8s) / KOPS CFN stack template,
-  Production Grade, clean, full-scale deployment,
+  AWS Kubernetes (K8s) / KOPS CFN stack template.
+  Production Grade, clean, full-scale deployment.
   Resilient self-healing Bastion host,
   Private topology,
-  Multi AZ K8s Mastsers,
-  Multi AZ NAT Gateways,
-  Automatic AutoScaled K8s Nodes (optional),
+  Multi AZ K8s Mastser,
+  Multi AZ NAT Gateway,
+  Automatic AutoScaled K8s Nodes (otpional),
   Private Multi-AZ VPC,
   Copyright Tamas Tobi / Total Cloud Consulting @ 2018'
 
@@ -21,7 +21,7 @@ Metadata:
     - Label:
         default: AWS EC2 / Kubernetes Configuration
       Parameters:
-      - InstallKubernetesIntoVPC
+      - K8sClusterName
       - Ec2KeyPairName
       - Ec2BastionInstanceType
       - Ec2K8sMasterInstanceType
@@ -38,19 +38,15 @@ Metadata:
       - KubernetesAPIPublicAccess
       - KubernetesClusterAutoscaler
       - KubernetesDashboard
-      - KubernetesALBIngressController
-      - KubernetesLogToAWSCloudwatchLogs
-    - Label:
-        default: Bastion Host OpenVPN Configuration
-      Parameters:
-      - VPNInstallOpenVPN
-      - VPNNumberOfPreGeneratedCerts
+      - KubernetesHeapsterMonitoring
 
     ParameterLabels:
       VPCIPv4CIDRBlock:
         default: Creates a new VPC with defined CIDR block
       AdminIngressLocation:
         default: Bastion Admin Host Ingress Allowed Location IPv4 range
+      K8sClusterName:
+        default: Kubernetes Cluster Name
       Ec2KeyPairName:
         default: Existing EC2 keypair name for instances
       Ec2BastionInstanceType:
@@ -71,22 +67,14 @@ Metadata:
         default: S3 key prefix for Bootstrap Files (Bastion, K8s, KOPS, Kubernetes)
       Ec2K8sAMIOsType:
         default: K8s Operation System type for Master / Nodes
-      VPNNumberOfPreGeneratedCerts:
-        default: Number of required pre-generated VPN connection certificates
       KubernetesClusterAutoscaler:
         default: Install Kubernetes Cluster Autoscaler
       KubernetesDashboard:
         default: Install Kubernetes Dashboard
-      VPNInstallOpenVPN:
-        default: Install and configure OpenVPN server on Bastion host
+      KubernetesHeapsterMonitoring:
+        default: Imnstall Heapster Monitoring
       KubernetesAPIPublicAccess:
         default: "Public Internet Kubernetes API acess via HTTPS"
-      KubernetesALBIngressController:
-        default: "Install CoreOS alb-ingress-controller plugin"
-      InstallKubernetesIntoVPC:
-        default: "Install Kubernetes via KOPS into the newly created VPC"
-      KubernetesLogToAWSCloudwatchLogs:
-        default: "Send Docker container logs to AWS Cloudwatch Logs"
 
 Parameters:
   VPCIPv4CIDRBlock:
@@ -110,6 +98,16 @@ Parameters:
     MaxLength: 18
     AllowedPattern: "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})"
     ConstraintDescription: must be a valid IPv4 CIDR range of the form x.x.x.x/x.
+
+  K8sClusterName:
+    Description: Name of the Kubernetes Cluster
+    Type: String
+    MinLength: '3'
+    Default: full-scale
+    AllowedPattern: "^[0-9a-zA-Z]+([0-9a-zA-Z-]*[0-9a-zA-Z])*$"
+    ConstraintDescription: Kubernetes Cluster Name can include numbers, lowercase
+      letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen
+      (-).
 
   Ec2KeyPairName:
     Description: Existing EC2 KeyPair for SSH access on Bastion host.
@@ -231,13 +229,6 @@ Parameters:
     - RHEL-7-Latest
     ConstraintDescription: must be a valid OS type.
     
-  VPNNumberOfPreGeneratedCerts:
-    Description: OpenVPN number of pre-generated certificates
-    Default: 5
-    Type: Number
-    MinValue: 1
-    MaxValue: 25
-    
   KubernetesClusterAutoscaler:
     Description: >-
       Kubernetes Cluster Autoscaler plugin: https://github.com/kubernetes/autoscaler
@@ -256,12 +247,11 @@ Parameters:
       - 'true'
       - 'false'
       
-
-  VPNInstallOpenVPN:
+  KubernetesHeapsterMonitoring:
     Description: >-
-      Install and auto-configure OpenVPN: https://github.com/tatobi/easy-openvpn
+      Kubernetes Heapster plugin: https://github.com/kubernetes/heapster
     Type: String
-    Default: 'true'
+    Default: 'false'
     AllowedValues:
       - 'true'
       - 'false'
@@ -274,29 +264,6 @@ Parameters:
       - 'true'
       - 'false'
 
-  KubernetesALBIngressController:
-    Description: If true, install CoreOS ALB ingress controller.
-    Type: String
-    Default: 'true'
-    AllowedValues:
-      - 'true'
-      - 'false'
-  
-  InstallKubernetesIntoVPC:
-    Description: If true, install Kubernetes cluster via KOPS into the newly created VPC.
-    Type: String
-    Default: 'true'
-    AllowedValues:
-      - 'true'
-      - 'false'
-    
-  KubernetesLogToAWSCloudwatchLogs:
-    Description: If true, all Docker container logs redirected to AWS ClkoudWatch Logs.
-    Type: String
-    Default: 'false'
-    AllowedValues:
-      - 'true'
-      - 'false'
 
 
 Mappings:
@@ -481,7 +448,7 @@ Resources:
       EnableDnsHostnames: true
       Tags:
       - Key: Name
-        Value: !Sub "K8s VPC ${AWS::StackName}"
+        Value: !Sub "K8s VPC ${K8sClusterName}"
       - Key: KubernetesCluster
         Value: !Ref AWS::StackName
   
@@ -505,7 +472,7 @@ Resources:
           Ref: 'AWS::Region'
       Tags:
       - Key: Name
-        Value: !Sub "K8s PublicSubnet1 ${AWS::StackName}"
+        Value: !Sub "K8s PublicSubnet1 ${K8sClusterName}"
       - Key: KubernetesCluster
         Value: !Ref AWS::StackName
       - Key: kubernetes.io/role/alb-ingress
@@ -531,7 +498,7 @@ Resources:
           Ref: 'AWS::Region'
       Tags:
       - Key: Name
-        Value: !Sub "K8s PublicSubnet2 ${AWS::StackName}"
+        Value: !Sub "K8s PublicSubnet2 ${K8sClusterName}"
       - Key: KubernetesCluster
         Value: !Ref AWS::StackName
       - Key: kubernetes.io/role/alb-ingress
@@ -557,7 +524,7 @@ Resources:
           Ref: 'AWS::Region'
       Tags:
       - Key: Name
-        Value: !Sub "K8s PublicSubnet3 ${AWS::StackName}"
+        Value: !Sub "K8s PublicSubnet3 ${K8sClusterName}"
       - Key: KubernetesCluster
         Value: !Ref AWS::StackName
       - Key: kubernetes.io/role/alb-ingress
@@ -583,7 +550,7 @@ Resources:
           Ref: 'AWS::Region'
       Tags:
       - Key: Name
-        Value: !Sub "K8s PrivateSubnet1 ${AWS::StackName}"
+        Value: !Sub "K8s PrivateSubnet1 ${K8sClusterName}"
       - Key: KubernetesCluster
         Value: !Ref AWS::StackName
           
@@ -607,7 +574,7 @@ Resources:
           Ref: 'AWS::Region'
       Tags:
       - Key: Name
-        Value: !Sub "K8s PrivateSubnet2 ${AWS::StackName}"
+        Value: !Sub "K8s PrivateSubnet2 ${K8sClusterName}"
       - Key: KubernetesCluster
         Value: !Ref AWS::StackName
         
@@ -631,7 +598,7 @@ Resources:
           Ref: 'AWS::Region'
       Tags:
       - Key: Name
-        Value: !Sub "K8s PrivateSubnet3 ${AWS::StackName}"
+        Value: !Sub "K8s PrivateSubnet3 ${K8sClusterName}"
       - Key: KubernetesCluster
         Value: !Ref AWS::StackName
 
@@ -648,7 +615,7 @@ Resources:
     Properties:
       Tags:
       - Key: Name
-        Value: !Sub "K8s InternetGateway ${AWS::StackName}"
+        Value: !Sub "K8s InternetGateway ${K8sClusterName}"
       - Key: KubernetesCluster
         Value: !Ref AWS::StackName
   
@@ -677,7 +644,7 @@ Resources:
       VpcId: !Ref VPC
       Tags:
       - Key: Name
-        Value: !Sub "K8s PublicRouteTable ${AWS::StackName}"
+        Value: !Sub "K8s PublicRouteTable ${K8sClusterName}"
       - Key: KubernetesCluster
         Value: !Ref AWS::StackName
     
@@ -767,7 +734,7 @@ Resources:
       AllocationId: !GetAtt NATElasticIP1.AllocationId
       Tags:
       - Key: Name
-        Value: !Sub "K8s NATGateway1 ${AWS::StackName}"
+        Value: !Sub "K8s NATGateway1 ${K8sClusterName}"
       - Key: KubernetesCluster
         Value: !Ref AWS::StackName
         
@@ -784,7 +751,7 @@ Resources:
       AllocationId: !GetAtt NATElasticIP2.AllocationId
       Tags:
       - Key: Name
-        Value: !Sub "K8s NATGateway2 ${AWS::StackName}"
+        Value: !Sub "K8s NATGateway2 ${K8sClusterName}"
       - Key: KubernetesCluster
         Value: !Ref AWS::StackName
         
@@ -801,7 +768,7 @@ Resources:
       AllocationId: !GetAtt NATElasticIP3.AllocationId
       Tags:
       - Key: Name
-        Value: !Sub "K8s NATGateway3 ${AWS::StackName}"
+        Value: !Sub "K8s NATGateway3 ${K8sClusterName}"
       - Key: KubernetesCluster
         Value: !Ref AWS::StackName
 
@@ -815,7 +782,7 @@ Resources:
       VpcId: !Ref VPC
       Tags:
       - Key: Name
-        Value: !Sub "K8s PrivateRouteTable1 ${AWS::StackName}"
+        Value: !Sub "K8s PrivateRouteTable1 ${K8sClusterName}"
       - Key: KubernetesCluster
         Value: !Ref AWS::StackName
     
@@ -841,7 +808,7 @@ Resources:
       VpcId: !Ref VPC
       Tags:
       - Key: Name
-        Value: !Sub "K8s PrivateRouteTable2 ${AWS::StackName}"
+        Value: !Sub "K8s PrivateRouteTable2 ${K8sClusterName}"
       - Key: KubernetesCluster
         Value: !Ref AWS::StackName
     
@@ -867,7 +834,7 @@ Resources:
       VpcId: !Ref VPC
       Tags:
       - Key: Name
-        Value: !Sub "K8s PrivateRouteTable3 ${AWS::StackName}"
+        Value: !Sub "K8s PrivateRouteTable3 ${K8sClusterName}"
       - Key: KubernetesCluster
         Value: !Ref AWS::StackName
     
@@ -936,7 +903,7 @@ Resources:
           CidrIp: !Sub "${VPCIPv4CIDRBlock}/16"
       VpcId: !Ref VPC
       GroupDescription: Bastion Instance Security Group
-      GroupName : !Sub "K8s BastionSecurityGroup ${AWS::StackName}"
+      GroupName : !Sub "K8s BastionSecurityGroup ${K8sClusterName}"
   
   K8sMasterAndNodeSecurityGroup:
     DependsOn:
@@ -950,7 +917,7 @@ Resources:
           CidrIp: !Sub "${VPCIPv4CIDRBlock}/16"
       VpcId: !Ref VPC
       GroupDescription: Kubernetes Istances Security Group
-      GroupName : !Sub "K8s Master And Node SG ${AWS::StackName}"
+      GroupName : !Sub "K8s Master And Node ${K8sClusterName}"
   
   VPCEndPointS3:
     Type: 'AWS::EC2::VPCEndpoint'
@@ -1154,7 +1121,7 @@ Resources:
         - Ref: BastionSecurityGroup
       Tags:
       - Key: Name
-        Value: !Sub "k8s bastion host ${AWS::StackName}"
+        Value: !Sub "k8s bastion host ${K8sClusterName}"
       - Key: KubernetesCluster
         Value: !Ref AWS::StackName
       - Key: K8sBastionNumber
@@ -1190,7 +1157,7 @@ Resources:
           /usr/local/bin/cfn-signal -e $? --stack ${AWS::StackId} --resource BastionHost --region ${AWS::Region}
           
           EIP_LIST=${BastionElasticIP}
-          CLOUDWATCHGROUP=K8s-Bastion-${AWS::StackName}
+          CLOUDWATCHGROUP=K8s-Bastion-${K8sClusterName}
     
     Metadata:
       AWS::CloudFormation::Init:
@@ -1236,50 +1203,14 @@ Resources:
                 mkdir -p /opt/bastion-init
                 cd /opt/bastion-init
                 
-                aws ec2 create-tags --resources $instance_id --tags Key=BASTION-awslogs,Value=K8s-Bastion-${AWS::StackName} --region ${AWS::Region}
+                aws ec2 create-tags --resources $instance_id --tags Key=BASTION-awslogs,Value=K8s-Bastion-${K8sClusterName} --region ${AWS::Region}
                 aws s3 sync s3://${S3BootstrapBucketName}/${S3BootstrapBucketPrefix}/bootstrap/ ./ --region ${AWS::Region} --quiet
                 
                 chmod +x ./*.sh
                 chmod +x ./*.py
-                ./01-init-bastion-host.sh ${S3BootstrapBucketName} ${S3BootstrapBucketPrefix} ${AWS::Region} ${VPCIPv4CIDRBlock}
+                ./02-init-bastion-host.sh ${S3BootstrapBucketName} ${S3BootstrapBucketPrefix} ${AWS::Region} ${VPCIPv4CIDRBlock}
                 exit 0
 
-            '/opt/bastion-init-internal-dns.sh':
-              mode: '000755'
-              owner: "root"
-              group: "root"
-              content: !Sub |
-                #!/bin/bash
-                
-                mkdir -p /opt/kops-state
-                mkdir -p /opt/kops-config
-                cd /opt/bastion-init
-                
-                ./02-init-internal-dns.sh ${AWS::Region} ${VPC} "${KubernetesAPIPublicAccess}" ${AWS::StackName}
-                exit 0
-
-            '/opt/bastion-init-openvpn.sh':
-              mode: '000755'
-              owner: "root"
-              group: "root"
-              content: !Sub |
-                #!/bin/bash
-                
-                if [[ "${VPNInstallOpenVPN}" == "false" ]]; 
-                then
-                  echo "OpenVPN installation does not selected."
-                  exit 0
-                fi
-                
-                cd /opt
-                mkdir -p /opt/openvpn-keys
-                mkdir -p /opt/easy-openvpn
-                cd /opt/bastion-init
-                
-                aws s3 sync s3://${S3BootstrapBucketName}/${S3BootstrapBucketPrefix}/easy-openvpn/ /opt/easy-openvpn/ --region ${AWS::Region} --quiet
-
-                ./03-init-openvpn.sh "${VPCIPv4CIDRBlock}" "EU" "${AWS::StackName}" "${AWS::StackName}" "${AWS::StackName}" "Email" "OU" ${VPNNumberOfPreGeneratedCerts} "${AWS::StackName}-B1" ""
-                exit 0
 
             '/opt/bastion-init-kops.sh':
               mode: '000755'
@@ -1293,24 +1224,10 @@ Resources:
                 mkdir -p /opt/kops-config
                 cd /opt/bastion-init
                 
-                if [[ "${InstallKubernetesIntoVPC}" == "false" ]]; 
-                then
-                  echo "Kubernetes cluster installation does not selected."
-                  exit 0
-                fi
+                ./04-init-kops.sh ${AWS::Region} ${K8sClusterName} "NONE" ${Ec2K8sMasterInstanceType} ${Ec2K8sNodeInstanceType} ${Ec2K8sNodeCapacityMin} ${Ec2K8sNodeCapacityMax} ${Ec2EBSK8sDiskSizeGb} ${Ec2K8sAMIOsType} "true" ${PrivateSubnet1} ${PrivateSubnet2} ${VPC} "${VPCIPv4CIDRBlock}/16" ${K8sMasterAndNodeSecurityGroup} ${AWS::StackName} ${S3BootstrapBucketName} ${S3BootstrapBucketPrefix} "${KubernetesDashboard}" "${KubernetesHeapsterMonitoring}" "NONE" "${KubernetesClusterAutoscaler}" "${PrivateSubnet3}" "${PublicSubnet1}" "${PublicSubnet2}" "${PublicSubnet3}" "${KubernetesAPIPublicAccess}"
                 
-                CWLOGS=""
-                if [[ "${KubernetesLogToAWSCloudwatchLogs}" == "true" ]]; 
-                then
-                  echo "Kubernetes Docker logs sent to AWS CloudWatch Logs group ..."
-                  CWLOGS="YES"
-                  exit 0
-                fi
-                
-                ./04-init-kops.sh ${AWS::Region} ${AWS::StackName} "NONE" ${Ec2K8sMasterInstanceType} ${Ec2K8sNodeInstanceType} ${Ec2K8sNodeCapacityMin} ${Ec2K8sNodeCapacityMax} ${Ec2EBSK8sDiskSizeGb} ${Ec2K8sAMIOsType} "true" ${PrivateSubnet1} ${PrivateSubnet2} ${VPC} "${VPCIPv4CIDRBlock}/16" ${K8sMasterAndNodeSecurityGroup} ${AWS::StackName} ${S3BootstrapBucketName} ${S3BootstrapBucketPrefix} "${KubernetesDashboard}" "false" "${KubernetesALBIngressController}" "${KubernetesClusterAutoscaler}" "${PrivateSubnet3}" "${PublicSubnet1}" "${PublicSubnet2}" "${PublicSubnet3}" "${KubernetesAPIPublicAccess}" "$CWLOGS"
-
                 exit 0
-
+                
             '/opt/bastion-init-finish.sh':
               mode: '000755'
               owner: "root"
@@ -1340,14 +1257,10 @@ Resources:
             "01-start-cfn-hup":
               command: "systemctl start cfn-hup.service" 
             "02-init-bastion-host":
-              command: "/opt/bastion-init-host.sh >> /tmp/init-kops.log 2>&1"
-            "03-init-internal-dns.sh":
-              command: "/opt/bastion-init-internal-dns.sh >> /tmp/init-kops.log 2>&1"
-            "04-init-openvpn":
-              command: "/opt/bastion-init-openvpn.sh >> /tmp/init-kops.log 2>&1"
-            "05-init-kops":
+              command: "/opt/bastion-init-host.sh"
+            "04-init-kops":
               command: "/opt/bastion-init-kops.sh >> /tmp/init-kops.log 2>&1"
-            "06-init-finish":
+            "05-init-finish":
               command: "/opt/bastion-init-finish.sh"
     CreationPolicy:
       ResourceSignal:
@@ -1579,18 +1492,10 @@ Outputs:
       scp
       -i $SSH_KEY
       ubuntu@${BastionHost.PublicIp}:/opt/kops-state/KOPS_* ./
-      
-  OpenVPNConnectionConfigs:
-    Description: Get Bastion Host OpenVPN configs / keys to local machine. More in documentation (optional)
-    Value: !Sub >-
-      SSH_KEY="path/to/${Ec2KeyPairName}";
-      scp
-      -i $SSH_KEY
-      ubuntu@${BastionHost.PublicIp}:/opt/openvpn-keys/* ./
   
   AWSLogs:
-    Description: Get logs from Kubernetes Docker contaners and Bastion host bootstrap (optional).
+    Description: Get logs from Kubernetes Docker contaners and Bastion host bootstrap.
     Value: !Sub >-
-      Bastionhost - K8s-Bastion-${AWS::StackName}
-      Dcoker containers - K8s-ALL-Docker-Logs-${AWS::StackName}
+      Bastionhost - K8s-Bastion-${K8sClusterName}
+      Dcoker containers - K8s-ALL-Docker-Logs-${K8sClusterName}
 

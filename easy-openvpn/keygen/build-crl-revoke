@@ -1,0 +1,33 @@
+#!/bin/bash
+
+source ./vars
+
+CRL="crl.pem"
+RT="revoke-test.pem"
+
+if [ "$KEY_DIR" ]; then
+    echo "Create revoke CRL ..."
+    cd "$KEY_DIR"
+    rm -f "$RT"
+    chmod og+X $KEY_DIR
+
+    # set defaults
+    export KEY_CN=""
+    export KEY_OU=""
+
+    # generate a new CRL -- try to be compatible with
+    # intermediate PKIs
+    $OPENSSL ca -gencrl -out "$CRL" -config "$KEY_CONFIG"
+
+    #openssl ca  -gencrl -keyfile keys/ca.key -cert keys/ca.crt  -out keys/crl.pem -config ./openssl.cnf
+
+    if [ -e export-ca.crt ]; then
+        cat export-ca.crt "$CRL" >"$RT"
+    else
+        cat ca.crt "$CRL" >"$RT"
+    fi
+    echo "DONE"
+else
+    echo 'Please source the vars script first (i.e. "source ./vars")'
+    echo 'Make sure you have edited it to reflect your configuration.'
+fi

@@ -1,0 +1,15 @@
+#!/bin/bash
+
+# Like build-req, but protect your private key
+# with a password.
+
+source ./vars
+
+if [[ -e $KEY_DIR/server.csr ]];
+then
+    echo "WARNING:server.csr already exists! Exit."
+    exit 1
+fi
+
+export EASY_RSA="${EASY_RSA:-.}"
+"$EASY_RSA/pkitool" --csr --pass $*

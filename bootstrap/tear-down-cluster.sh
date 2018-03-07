@@ -2,7 +2,7 @@
 
 AWSRegion=${1}
 
-echo "TEAR DOWN START."
+echo "TEAR DOWN START..."
 
 export KOPS_STATE_STORE=`cat /opt/kops-state/KOPS_STATE_STORE`
 export KOPS_CLUSTER_NAME=`cat /opt/kops-state/KOPS_CLUSTER_NAME`
@@ -17,12 +17,24 @@ do
   echo "Delete ingress: $i..."; 
   kubectl delete ingress $i --force;
   ingress="YES"
+  sleep 10
+  
+  for j in `aws elbv2 describe-target-groups --region ${AWSRegion} --output text | grep arn | grep TARGETGROUPS | awk '{print $10}'`; 
+  do
+    echo "Target group: $j ..."; 
+    N=`aws elbv2 describe-tags --resource-arns $j --region ${AWSRegion} --output text | grep $i`; 
+    if [[ -n "${N}" ]];
+    then
+      echo "DELETE TARGET GROUP: ${N} ...";
+      aws elbv2 delete-target-group --target-group-arn $j --region ${AWSRegion}
+    fi
+  done
 done
 
 #wait for target group deletion, it is async wait to remove ALB target groups
 if [[ "${ingress}" == "YES" ]];
 then
-  sleep 60
+  sleep 10
 fi
 
 #delete cluster

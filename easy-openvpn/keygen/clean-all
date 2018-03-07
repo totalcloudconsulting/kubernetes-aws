@@ -1,0 +1,37 @@
+#!/bin/bash
+
+# Initialize the $KEY_DIR directory.
+# Note that this script does a
+# rm -rf on $KEY_DIR so be careful!
+
+echo ""
+echo "##################################"
+echo "WARNING! You are goung to purge EVERYTHING from OpenVPN!"
+echo "##################################"
+echo ""
+read -p  "ARE YOU SURE? [y/n]" -n 1 -r
+echo    # (optional) move to a new line
+if [[ ! $REPLY =~ ^[Yy]$ ]]
+then
+    [[ "$0" = "$BASH_SOURCE" ]] && exit 1 || return 1 # handle exits from shell or function but don't exit interactive shell
+fi
+
+source ./vars
+
+if [ "$KEY_DIR" ]; then
+	rm -rf "$KEY_DIR"
+	mkdir "$KEY_DIR" && \
+	chmod go-rwx "$KEY_DIR" && \
+	touch "$KEY_DIR/index.txt" && \
+	echo 01 >"$KEY_DIR/serial"
+	rm -rf $OPENVPN_CONF_DIR/ccd/*
+	rm -f $OPENVPN_CONF_DIR/ipp.txt
+	rm -f $OPENVPN_CONF_DIR/*.sh
+	rm -f $OPENVPN_CONF_DIR/*.conf
+	rm -f $OPENVPN_LOG_DIR/*
+	echo ""
+	echo "DONE."
+else
+    echo 'Please source the vars script first (i.e. "source ./vars")'
+    echo 'Make sure you have edited it to reflect your configuration.'
+fi

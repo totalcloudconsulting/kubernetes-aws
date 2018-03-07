@@ -1,0 +1,14 @@
+#!/bin/bash
+
+# Build Diffie-Hellman parameters for the server side
+# of an SSL/TLS connection.
+
+source ./vars
+
+if [[ -e $KEY_DIR/ta.key ]];
+then
+    echo "WARNING:ta.key already exists! Exit."
+    exit 1
+fi
+
+openvpn --genkey -b 2048 --secret ${KEY_DIR}/ta.key

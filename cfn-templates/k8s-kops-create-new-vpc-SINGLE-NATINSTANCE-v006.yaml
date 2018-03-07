@@ -1,12 +1,10 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: 
-  AWS Kubernetes (K8s) / KOPS CFN stack template,
-  Production Grade, clean, full-scale deployment,
-  Resilient self-healing Bastion host,
-  Private topology,
-  Multi AZ K8s Mastsers,
-  Multi AZ NAT Gateways,
-  Automatic AutoScaled K8s Nodes (optional),
+  AWS Kubernetes (K8s) / KOPS CFN stack template. 
+  Single AZ Bastion (self-healing),
+  Single AZ K8s Mastser,
+  Single NAT Instance (the Bastion host is the NAT instance),
+  Automatic AutoScaled K8s Nodes,
   Private Multi-AZ VPC,
   Copyright Tamas Tobi / Total Cloud Consulting @ 2018'
 
@@ -119,7 +117,7 @@ Parameters:
   Ec2BastionInstanceType:
     Description: EC2 type for the Bastion instance.
     Type: String
-    Default: t2.small
+    Default: t2.micro
     AllowedValues:
     - t2.micro
     - t2.small
@@ -137,7 +135,7 @@ Parameters:
   Ec2K8sMasterInstanceType:
     Description: EC2 type for the K8s Master instance(s).
     Type: String
-    Default: t2.medium
+    Default: t2.small
     AllowedValues:
     - t2.small
     - t2.medium
@@ -158,7 +156,7 @@ Parameters:
   Ec2K8sNodeInstanceType:
     Description: EC2 type for the K8s Node instance(s).
     Type: String
-    Default: t2.medium
+    Default: t2.small
     AllowedValues:
     - t2.small
     - t2.medium
@@ -177,10 +175,10 @@ Parameters:
     ConstraintDescription: must be a valid EC2 instance type.
 
   Ec2K8sNodeCapacityMin:
-    Default: '3'
+    Default: '1'
     Description: The initial number of Kubernetes Node Instances
     Type: Number
-    MinValue: '3'
+    MinValue: '1'
     MaxValue: '100'
     ConstraintDescription: must be between 1 and 10 EC2 instances.
     
@@ -188,7 +186,7 @@ Parameters:
     Default: '10'
     Description: The MAXIMUM number of Kubernetes Node Instances
     Type: Number
-    MinValue: '3'
+    MinValue: '1'
     MaxValue: '100'
     ConstraintDescription: must be between 1 and 10 EC2 instances.
 
@@ -251,11 +249,10 @@ Parameters:
     Description: >-
       Kubernetes Dashboard plugin: https://github.com/kubernetes/dashboard
     Type: String
-    Default: 'false'
+    Default: 'true'
     AllowedValues:
       - 'true'
       - 'false'
-      
 
   VPNInstallOpenVPN:
     Description: >-
@@ -469,6 +466,7 @@ Mappings:
 
 
 Resources:
+
 ########################################################
 # Networking Configuration
 ########################################################
@@ -481,7 +479,7 @@ Resources:
       EnableDnsHostnames: true
       Tags:
       - Key: Name
-        Value: !Sub "K8s VPC ${AWS::StackName}"
+        Value: !Sub "k8s VPC ${AWS::StackName}"
       - Key: KubernetesCluster
         Value: !Ref AWS::StackName
   
@@ -505,7 +503,7 @@ Resources:
           Ref: 'AWS::Region'
       Tags:
       - Key: Name
-        Value: !Sub "K8s PublicSubnet1 ${AWS::StackName}"
+        Value: !Sub "k8s publicsubnet1 ${AWS::StackName}"
       - Key: KubernetesCluster
         Value: !Ref AWS::StackName
       - Key: kubernetes.io/role/alb-ingress
@@ -531,7 +529,7 @@ Resources:
           Ref: 'AWS::Region'
       Tags:
       - Key: Name
-        Value: !Sub "K8s PublicSubnet2 ${AWS::StackName}"
+        Value: !Sub "k8s publicsubnet2 ${AWS::StackName}"
       - Key: KubernetesCluster
         Value: !Ref AWS::StackName
       - Key: kubernetes.io/role/alb-ingress
@@ -557,7 +555,7 @@ Resources:
           Ref: 'AWS::Region'
       Tags:
       - Key: Name
-        Value: !Sub "K8s PublicSubnet3 ${AWS::StackName}"
+        Value: !Sub "k8s publicsubnet3 ${AWS::StackName}"
       - Key: KubernetesCluster
         Value: !Ref AWS::StackName
       - Key: kubernetes.io/role/alb-ingress
@@ -583,7 +581,7 @@ Resources:
           Ref: 'AWS::Region'
       Tags:
       - Key: Name
-        Value: !Sub "K8s PrivateSubnet1 ${AWS::StackName}"
+        Value: !Sub "k8s privatesubnet1 ${AWS::StackName}"
       - Key: KubernetesCluster
         Value: !Ref AWS::StackName
           
@@ -607,7 +605,7 @@ Resources:
           Ref: 'AWS::Region'
       Tags:
       - Key: Name
-        Value: !Sub "K8s PrivateSubnet2 ${AWS::StackName}"
+        Value: !Sub "k8s privatesubnet2 ${AWS::StackName}"
       - Key: KubernetesCluster
         Value: !Ref AWS::StackName
         
@@ -631,7 +629,7 @@ Resources:
           Ref: 'AWS::Region'
       Tags:
       - Key: Name
-        Value: !Sub "K8s PrivateSubnet3 ${AWS::StackName}"
+        Value: !Sub "k8s privatesubnet3 ${AWS::StackName}"
       - Key: KubernetesCluster
         Value: !Ref AWS::StackName
 
@@ -672,6 +670,7 @@ Resources:
       - VPC
       - PublicSubnet1
       - PublicSubnet2
+      - PublicSubnet3
     Type: 'AWS::EC2::RouteTable'
     Properties:
       VpcId: !Ref VPC
@@ -689,6 +688,7 @@ Resources:
       - VPC
       - PublicSubnet1
       - PublicSubnet2
+      - PublicSubnet3
     Type: 'AWS::EC2::Route'
     Properties:
       RouteTableId: !Ref PublicRouteTable
@@ -729,87 +729,11 @@ Resources:
     Properties:
       SubnetId: !Ref PublicSubnet3
       RouteTableId: !Ref PublicRouteTable
-  
-  NATElasticIP1:
-    DependsOn:
-      - PublicSubnet1
-      - PublicRouteTable
-      - VPC
-      - PublicRoute
-    Type: 'AWS::EC2::EIP'
-    
-  NATElasticIP2:
-    DependsOn:
-      - PublicSubnet2
-      - PublicRouteTable
-      - VPC
-      - PublicRoute
-    Type: 'AWS::EC2::EIP'
-    
-  NATElasticIP3:
-    DependsOn:
-      - PublicSubnet2
-      - PublicRouteTable
-      - VPC
-      - PublicRoute
-    Type: 'AWS::EC2::EIP'
-  
-  NATGateway1:
-    DependsOn:
-      - PublicSubnet1
-      - PublicRouteTable
-      - VPC
-      - PublicRoute
-      - NATElasticIP1
-    Type: 'AWS::EC2::NatGateway'
-    Properties:
-      SubnetId: !Ref PublicSubnet1
-      AllocationId: !GetAtt NATElasticIP1.AllocationId
-      Tags:
-      - Key: Name
-        Value: !Sub "K8s NATGateway1 ${AWS::StackName}"
-      - Key: KubernetesCluster
-        Value: !Ref AWS::StackName
-        
-  NATGateway2:
-    DependsOn:
-      - PublicSubnet2
-      - PublicRouteTable
-      - VPC
-      - PublicRoute
-      - NATElasticIP2
-    Type: 'AWS::EC2::NatGateway'
-    Properties:
-      SubnetId: !Ref PublicSubnet2
-      AllocationId: !GetAtt NATElasticIP2.AllocationId
-      Tags:
-      - Key: Name
-        Value: !Sub "K8s NATGateway2 ${AWS::StackName}"
-      - Key: KubernetesCluster
-        Value: !Ref AWS::StackName
-        
-  NATGateway3:
-    DependsOn:
-      - PublicSubnet3
-      - PublicRouteTable
-      - VPC
-      - PublicRoute
-      - NATElasticIP3
-    Type: 'AWS::EC2::NatGateway'
-    Properties:
-      SubnetId: !Ref PublicSubnet3
-      AllocationId: !GetAtt NATElasticIP3.AllocationId
-      Tags:
-      - Key: Name
-        Value: !Sub "K8s NATGateway3 ${AWS::StackName}"
-      - Key: KubernetesCluster
-        Value: !Ref AWS::StackName
 
   PrivateRouteTable1:
     DependsOn:
       - VPC
       - PrivateSubnet1
-      - NATGateway1
     Type: 'AWS::EC2::RouteTable'
     Properties:
       VpcId: !Ref VPC
@@ -819,23 +743,11 @@ Resources:
       - Key: KubernetesCluster
         Value: !Ref AWS::StackName
     
-  PrivateRoute1:
-    DependsOn:
-      - PrivateRouteTable1
-      - NATGateway1
-      - VPC
-      - PrivateSubnet1
-    Type: 'AWS::EC2::Route'
-    Properties:
-      RouteTableId: !Ref PrivateRouteTable1
-      DestinationCidrBlock: 0.0.0.0/0
-      NatGatewayId: !Ref NATGateway1
       
   PrivateRouteTable2:
     DependsOn:
       - VPC
       - PrivateSubnet2
-      - NATGateway2
     Type: 'AWS::EC2::RouteTable'
     Properties:
       VpcId: !Ref VPC
@@ -844,24 +756,11 @@ Resources:
         Value: !Sub "K8s PrivateRouteTable2 ${AWS::StackName}"
       - Key: KubernetesCluster
         Value: !Ref AWS::StackName
-    
-  PrivateRoute2:
-    DependsOn:
-      - PrivateRouteTable2
-      - VPC
-      - PrivateSubnet2
-      - NATGateway2
-    Type: 'AWS::EC2::Route'
-    Properties:
-      RouteTableId: !Ref PrivateRouteTable2
-      DestinationCidrBlock: 0.0.0.0/0
-      NatGatewayId: !Ref NATGateway2
-      
+
   PrivateRouteTable3:
     DependsOn:
       - VPC
       - PrivateSubnet3
-      - NATGateway1
     Type: 'AWS::EC2::RouteTable'
     Properties:
       VpcId: !Ref VPC
@@ -870,22 +769,9 @@ Resources:
         Value: !Sub "K8s PrivateRouteTable3 ${AWS::StackName}"
       - Key: KubernetesCluster
         Value: !Ref AWS::StackName
-    
-  PrivateRoute3:
-    DependsOn:
-      - PrivateRouteTable3
-      - VPC
-      - PrivateSubnet3
-      - NATGateway1
-    Type: 'AWS::EC2::Route'
-    Properties:
-      RouteTableId: !Ref PrivateRouteTable3
-      DestinationCidrBlock: 0.0.0.0/0
-      NatGatewayId: !Ref NATGateway3
   
   PrivateSubnetRouteTableAssociation1:
     DependsOn:
-      - PrivateRoute1
       - PrivateRouteTable1
       - PrivateSubnet1
       - VPC
@@ -896,7 +782,6 @@ Resources:
   
   PrivateSubnetRouteTableAssociation2:
     DependsOn:
-      - PrivateRoute2
       - PrivateRouteTable2
       - PrivateSubnet2
       - VPC
@@ -907,7 +792,6 @@ Resources:
       
   PrivateSubnetRouteTableAssociation3:
     DependsOn:
-      - PrivateRoute3
       - PrivateRouteTable3
       - PrivateSubnet3
       - VPC
@@ -950,12 +834,15 @@ Resources:
           CidrIp: !Sub "${VPCIPv4CIDRBlock}/16"
       VpcId: !Ref VPC
       GroupDescription: Kubernetes Istances Security Group
-      GroupName : !Sub "K8s Master And Node SG ${AWS::StackName}"
+      GroupName : !Sub "K8s Master And Node ${AWS::StackName}"
   
   VPCEndPointS3:
     Type: 'AWS::EC2::VPCEndpoint'
     DependsOn:
       - VPC
+      - PublicSubnet1
+      - PublicSubnet2
+      - PublicSubnet3
       - PublicSubnetRouteTableAssociation1
       - PublicSubnetRouteTableAssociation2
       - PublicSubnetRouteTableAssociation3
@@ -1113,11 +1000,6 @@ Resources:
       Roles:
       - !Ref BastionRole
 
-  BastionElasticIP:
-    DependsOn:
-      - VPC
-    Type: 'AWS::EC2::EIP'
-    
 
   BastionHost:
     Type: AWS::EC2::Instance
@@ -1131,10 +1013,9 @@ Resources:
     - PrivateSubnetRouteTableAssociation1
     - PrivateSubnetRouteTableAssociation2
     - PrivateSubnetRouteTableAssociation3
-    - BastionElasticIP
-    - PrivateSubnet1
-    - PrivateSubnet2
-    - PrivateSubnet3
+    - PrivateRouteTable1
+    - PrivateRouteTable2
+    - PrivateRouteTable3
     - VPCEndPointS3
     - VPCEndPointDynamoDB
     Properties:
@@ -1189,8 +1070,7 @@ Resources:
           /usr/local/bin/cfn-init -v --stack ${AWS::StackId} --resource BastionHost --region ${AWS::Region}
           /usr/local/bin/cfn-signal -e $? --stack ${AWS::StackId} --resource BastionHost --region ${AWS::Region}
           
-          EIP_LIST=${BastionElasticIP}
-          CLOUDWATCHGROUP=K8s-Bastion-${AWS::StackName}
+          CLOUDWATCHGROUP=k8s-bastion-${AWS::StackName}
     
     Metadata:
       AWS::CloudFormation::Init:
@@ -1225,6 +1105,8 @@ Resources:
 
                 [Install]
                 WantedBy=multi-user.target
+            
+            
             '/opt/bastion-init-host.sh':
               mode: '000755'
               owner: "root"
@@ -1236,6 +1118,11 @@ Resources:
                 mkdir -p /opt/bastion-init
                 cd /opt/bastion-init
                 
+                #create routes in private rourte tables
+                instance_id=`curl http://169.254.169.254/latest/meta-data/instance-id`
+                aws ec2 create-route --destination-cidr-block 0.0.0.0/0 --instance-id $instance_id --route-table-id ${PrivateRouteTable1} --region ${AWS::Region}
+                aws ec2 create-route --destination-cidr-block 0.0.0.0/0 --instance-id $instance_id --route-table-id ${PrivateRouteTable2} --region ${AWS::Region}
+                aws ec2 create-route --destination-cidr-block 0.0.0.0/0 --instance-id $instance_id --route-table-id ${PrivateRouteTable3} --region ${AWS::Region}
                 aws ec2 create-tags --resources $instance_id --tags Key=BASTION-awslogs,Value=K8s-Bastion-${AWS::StackName} --region ${AWS::Region}
                 aws s3 sync s3://${S3BootstrapBucketName}/${S3BootstrapBucketPrefix}/bootstrap/ ./ --region ${AWS::Region} --quiet
                 
@@ -1307,10 +1194,10 @@ Resources:
                   exit 0
                 fi
                 
-                ./04-init-kops.sh ${AWS::Region} ${AWS::StackName} "NONE" ${Ec2K8sMasterInstanceType} ${Ec2K8sNodeInstanceType} ${Ec2K8sNodeCapacityMin} ${Ec2K8sNodeCapacityMax} ${Ec2EBSK8sDiskSizeGb} ${Ec2K8sAMIOsType} "true" ${PrivateSubnet1} ${PrivateSubnet2} ${VPC} "${VPCIPv4CIDRBlock}/16" ${K8sMasterAndNodeSecurityGroup} ${AWS::StackName} ${S3BootstrapBucketName} ${S3BootstrapBucketPrefix} "${KubernetesDashboard}" "false" "${KubernetesALBIngressController}" "${KubernetesClusterAutoscaler}" "${PrivateSubnet3}" "${PublicSubnet1}" "${PublicSubnet2}" "${PublicSubnet3}" "${KubernetesAPIPublicAccess}" "$CWLOGS"
+                ./04-init-kops.sh ${AWS::Region} ${AWS::StackName} "NONE" ${Ec2K8sMasterInstanceType} ${Ec2K8sNodeInstanceType} ${Ec2K8sNodeCapacityMin} ${Ec2K8sNodeCapacityMax} ${Ec2EBSK8sDiskSizeGb} ${Ec2K8sAMIOsType} "false" ${PrivateSubnet1} ${PrivateSubnet2} ${VPC} "${VPCIPv4CIDRBlock}/16" ${K8sMasterAndNodeSecurityGroup} ${AWS::StackName} ${S3BootstrapBucketName} ${S3BootstrapBucketPrefix} "${KubernetesDashboard}" "false" "${KubernetesALBIngressController}" "${KubernetesClusterAutoscaler}" "${PrivateSubnet3}" "${PublicSubnet1}" "${PublicSubnet2}" "${PublicSubnet3}" "${KubernetesAPIPublicAccess}" "$CWLOGS"
 
                 exit 0
-
+            
             '/opt/bastion-init-finish.sh':
               mode: '000755'
               owner: "root"
@@ -1581,7 +1468,7 @@ Outputs:
       ubuntu@${BastionHost.PublicIp}:/opt/kops-state/KOPS_* ./
       
   OpenVPNConnectionConfigs:
-    Description: Get Bastion Host OpenVPN configs / keys to local machine. More in documentation (optional)
+    Description: Get Bastion Host OpenVPN configs / keys to local machine. More in documentation.
     Value: !Sub >-
       SSH_KEY="path/to/${Ec2KeyPairName}";
       scp
@@ -1589,8 +1476,8 @@ Outputs:
       ubuntu@${BastionHost.PublicIp}:/opt/openvpn-keys/* ./
   
   AWSLogs:
-    Description: Get logs from Kubernetes Docker contaners and Bastion host bootstrap (optional).
+    Description: Get logs from Kubernetes Docker contaners and Bastion host bootstrap (if set in template).
     Value: !Sub >-
-      Bastionhost - K8s-Bastion-${AWS::StackName}
-      Dcoker containers - K8s-ALL-Docker-Logs-${AWS::StackName}
+      Bastionhost - k8s-bastion-${AWS::StackName}
+      Dcoker containers - k8s-all-cluster-logs-${AWS::StackName}
 

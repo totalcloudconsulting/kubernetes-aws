@@ -1,0 +1,39 @@
+#!/bin/bash
+
+#
+# Similar to build-key, but protect the private key
+# with a password and tar.gz keys into user dir
+#
+
+source ./vars
+
+if test $# -ne 1; then
+        echo "usage: $0 <name>";
+        exit 1
+fi
+
+if test $KEY_DIR; then
+	cd $KEY_DIR
+	if [[ -e $1/$1.key && -d $1 ]];
+	then
+		echo "This key already exist. Try other name! Exit."
+		exit 1
+	fi
+	export EASY_RSA="${EASY_RSA:-.}"
+	"$EASY_RSA/pkitool" --pkcs12 $*
+	chmod 0600 $1.p12 && \
+	mkdir $1 && \
+	mv $1.* $1/ && \
+	rm -f $1/*.csr && \
+	cp ta.key $1/$1.ta.key && \
+	sed 's/CHANGE_KEY/'$1'/g' $OPENVPN_CONF_DIR/keygen/client-template.commongw.p12.ovpn > $1/$1.ovpn && \
+	sed -i 's/CHANGE_TA/'$1'/g'  $1/$1.ovpn && \
+	sed -i 's/CHANGE_SERVER/'$SERVER_ENDPOINT'/g'  $1/$1.ovpn && \
+	sed -i 's/CHANGE_PORT/'$SERVER_PORT_TCP'/g'  $1/$1.ovpn && \
+	cp $OPENVPN_CONF_DIR/keygen/ccd $OPENVPN_CONF_DIR/ccd/$1
+	cd $1
+    zip -r $1.zip ./*.ovpn ./*ta.key ./*.p12
+	echo "DONE. KEY AND CONFIG:: $1.zip"
+else
+	echo "you must define KEY_DIR..."
+fi

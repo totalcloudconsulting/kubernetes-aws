@@ -20,16 +20,19 @@ S3BootstrapBucketName=${17}
 S3BootstrapBucketPrefix=${18}
 KubernetesDashboard=${19}
 KubernetesHeapsterMonitoring=${20}
-KubernetesALBIngressController_NOT_USED=${21}
+KubernetesALBIngressController=${21}
 KubernetesClusterAutoscaler=${22}
 PrivateSubnet3=${23}
 PublicSubnet1=${24}
 PublicSubnet2=${25}
 PublicSubnet3=${26}
 KubernetesAPIPublicAccess=${27}
+CWLOGS=${28}
 
 echo "#################"
 echo "START INIT-KOPS."
+
+K8sClusterName=`echo "${K8sClusterName}" | tr '[:upper:]' '[:lower:]'`
 
 #sync kops, k8s binaries
 aws s3 sync s3://${S3BootstrapBucketName}/${S3BootstrapBucketPrefix}/bin/ /usr/local/bin/ --region ${AWSRegion} --quiet
@@ -38,7 +41,7 @@ if [[ ! -e /usr/local/bin/kops ]];
 then 
   echo "Download latest KOPS...";
   #wget -O kops https://github.com/kubernetes/kops/releases/download/$(curl -s https://api.github.com/repos/kubernetes/kops/releases/latest | grep tag_name | cut -d '"' -f 4)/kops-linux-amd64 --no-verbose
-  wget -O kops https://github.com/kubernetes/kops/releases/download/1.8.1/kops-linux-amd64 --no-verbose
+  wget -O kops https://github.com/kubernetes/kops/releases/download/1.9.0-alpha.1/kops-linux-amd64 --no-verbose
   sudo mv ./kops /usr/local/bin/
 fi
 
@@ -46,7 +49,7 @@ if [[ ! -e /usr/local/bin/kubectl ]];
 then 
   echo "Download latest KUBECTL...";
   #wget -O kubectl https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl --no-verbose
-  wget -O kubectl https://storage.googleapis.com/kubernetes-release/release/v1.8.7/bin/linux/amd64/kubectl --no-verbose
+  wget -O kubectl https://storage.googleapis.com/kubernetes-release/release/v1.9.3/bin/linux/amd64/kubectl --no-verbose
   mv ./kubectl /usr/local/bin/kubectl
 fi
 
@@ -90,7 +93,15 @@ randomsuff=`cat /dev/urandom | tr -dc 'a-z0-9' | head -c 8`
 stacklower=`echo "${AWSCfnStackName}" | tr '[:upper:]' '[:lower:]'`
 echo $stacklower
 
-K8sRoute53ZoneName="k8s-fullscale-${randomsuff}.internal"
+K8sRoute53ZoneName="${K8sClusterName}.k8s.local"
+if [[ -e "/opt/kops-state/KOPS_VPC_R53_ZONE_DNS" ]];
+then
+  K8sRoute53ZoneName=`cat /opt/kops-state/KOPS_VPC_R53_ZONE_DNS`
+  echo "K8sRoute53ZoneName: ${K8sRoute53ZoneName}"
+else
+  echo "ERROR: no internal zone created, using local gossip based dns: ${K8sRoute53ZoneName}"
+fi
+
 
 #create s3 bucket
 if [[ ! -e s3-kops-state.txt ]];
@@ -175,7 +186,6 @@ k8sclustername="${K8sClusterName}.${K8sRoute53ZoneName}"
 api_lb_type="--api-loadbalancer-type=internal"
 dns_zone="--dns-zone=${K8sRoute53ZoneName}"
 dns="--dns=private"
-
 if [[ "${KubernetesAPIPublicAccess}" == "true" ]];
 then
   echo "K8s API LB is Public, using Gossip DNS configuration ..."
@@ -183,8 +193,6 @@ then
   dns_zone=""
   dns=""
   k8sclustername="${K8sClusterName}.k8s.local"
-else
-  echo "K8s internal DNS zone is: ${K8sRoute53ZoneName}"
 fi 
 
 # set env variables
@@ -199,12 +207,6 @@ echo "export NAME=${k8sclustername}" >> /home/ubuntu/.bashrc
 #tag instance
 instance_id=`curl http://169.254.169.254/latest/meta-data/instance-id`
 aws ec2 create-tags --resources ${instance_id} --tags Key=KOPS-state-store-bucket,Value=${KOPS_STATE_STORE} --region ${AWSRegion}
-
-#create private zone only if api set to internal
-if [[ "${KubernetesAPIPublicAccess}" == "false" ]];
-then
-  aws route53 create-hosted-zone --name ${K8sRoute53ZoneName} --vpc VPCRegion=${AWSRegion},VPCId=${VPC} --hosted-zone-config Comment="K8sPrivateZone",PrivateZone=true --region ${AWSRegion} --caller-reference "`date`" --output text | grep "hostedzone/" | grep "https://route53.amazonaws.com" | cut -d '/' -f 6 > /opt/kops-state/KOPS_R53_PRIVATE_HOSTED_ZONE_ID
-fi
 
 #create kops config
 if [ "${Ec2K8sMultiAZMaster}" == "true" ]; 
@@ -234,6 +236,7 @@ kops create cluster \
   --node-security-groups="${K8sMasterAndNodeSecurityGroup}" \
   --master-volume-size="${Ec2EBSK8sDiskSizeGb}" \
   --node-volume-size="${Ec2EBSK8sDiskSizeGb}" \
+  --authorization="RBAC" \
   --dry-run \
   --output="yaml" > /opt/kops-config/${k8sclustername}.yaml || exit 1
 else
@@ -242,7 +245,8 @@ kops create cluster \
   --cloud-labels="Name=${k8sclustername}" \
   ${dns_zone} \
   ${dns} \
-  --zones="${subnetzone1},${subnetzone2}" \
+  ${node_zones} \
+  --master-count=1 \
   --state="s3://${s3bucket}" \
   --topology="private" \
   --networking="calico"  \
@@ -260,20 +264,23 @@ kops create cluster \
   --node-security-groups="${K8sMasterAndNodeSecurityGroup}" \
   --master-volume-size="${Ec2EBSK8sDiskSizeGb}" \
   --node-volume-size="${Ec2EBSK8sDiskSizeGb}" \
+  --authorization="RBAC" \
   --dry-run \
   --output="yaml" > /opt/kops-config/${k8sclustername}.yaml || exit 1
 fi
 
 #create aws logs group
 echo "Crete Log Group for alld Docker container (master/Nodes) ..."
-loggroupname="K8s-ALL-Docker-Logs-${K8sClusterName}"
-aws logs create-log-group --log-group-name ${loggroupname} --region ${AWSRegion}
 
-echo ${loggroupname} > /opt/kops-state/KOPS_AWSLOGS
-
-aws ec2 create-tags --resources ${instance_id} --tags Key=KOPS-awslogs,Value=${loggroupname} --region ${AWSRegion}
-
-echo "AWS logs group name: ${loggroupname}"
+loggroupname="NONE"
+if [[ -n ${CWLOGS} ]];
+then
+  loggroupname="k8s-all-cluster-logs-${K8sClusterName}"
+  aws logs create-log-group --log-group-name ${loggroupname} --region ${AWSRegion}
+  echo ${loggroupname} > /opt/kops-state/KOPS_AWSLOGS
+  aws ec2 create-tags --resources ${instance_id} --tags Key=KOPS-awslogs,Value=${loggroupname} --region ${AWSRegion}
+  echo "AWS logs group name: ${loggroupname}"
+fi
 
 #apply subnet and policy mod
 python kops-sharedvpc-iam-yamlconfig.py ${AWSRegion} /opt/kops-config/${k8sclustername}.yaml kops-cluster-additionalpolicies.json ${loggroupname} /opt/kops-config/${k8sclustername}.MOD.yaml
@@ -325,9 +332,13 @@ chmod -R og+rX /opt
 
 if [[ ! -n ${k8s_done} ]];
 then
+  echo "########################"
   echo "ERROR CLUSTER DOES NOT RUNNING HEALTHY!"
+  echo "########################"
 else
+  echo "########################"
   echo "K8S CLUSTER IS RUNNING."
+  echo "########################"
 fi
 
 ## workaround for RHEL/CentOS host + Calico + Multi-AZ nezworking / k8s-ec2-srcdst
@@ -359,7 +370,9 @@ done
 #######################
 # KOPS Addons
 #######################
+echo "########################"
 echo "Install addons ..."
+echo "########################"
 
 cd /opt/bastion-init/
 
@@ -390,6 +403,21 @@ then
   sed -i -e "s@{{AWS_REGION}}@${AWS_REGION}@g" "${addon}"
   sed -i -e "s@{{SSL_CERT_PATH}}@${SSL_CERT_PATH}@g" "${addon}"
 
+  kubectl apply -f ${addon}
+fi
+
+# Kubernetes ALB ingress controller
+if [ "${KubernetesALBIngressController}" == "true" ]; 
+then
+  echo "Install K8s ALB ingress controller ..."
+  
+  kubectl apply -f alb-default-backend.yaml
+  sleep 5
+  
+  addon=alb-ingress-controller.yaml
+  sed -i 's/__REPLACE_AWS_REGION__/'${AWSRegion}'/g' ${addon}
+  sed -i 's/__REPLACE_K8S_CLUSTER_NAME__/'${k8sclustername}'/g' ${addon}
+  
   kubectl apply -f ${addon}
 fi
 
@@ -445,6 +473,7 @@ do
     fi
 done
 
+echo "Kubernetes clutser is running."
 
 echo "Init HELM ..."
 export HOME="/opt"
@@ -485,7 +514,7 @@ done
 
 
 helm version
-
+echo "########################"
 echo "DONE INIT-KOPS. EXIT ${k8s_successful}"
-echo "#################"
+echo "########################"
 exit ${k8s_successful}

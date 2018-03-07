@@ -1,0 +1,27 @@
+#!/bin/bash
+
+# Make a certificate/private key pair using a locally generated
+# root certificate.
+#
+# Explicitly set nsCertType to server using the "server"
+# extension in the openssl.cnf file.
+
+source ./vars
+
+if [[ -e $KEY_DIR/server.key ]];
+then
+	echo "WARNING: server key already exist, dont touch it!"
+	exit 1
+fi
+
+export EASY_RSA="${EASY_RSA:-.}"
+"$EASY_RSA/pkitool" --server $*
+
+mkdir -p $OPENVPN_LOG_DIR > /dev/null 2>&1 &
+chown nobody:root $OPENVPN_LOG_DIR > /dev/null 2>&1 &
+
+cp server-template-tcp-commongw.conf $OPENVPN_CONF_DIR/server-tcp-gw.conf
+sed -i 's/CHANGE_PORT/'$SERVER_PORT_TCP'/g'  $OPENVPN_CONF_DIR/server-tcp-gw.conf
+cp server-startup-template-tcp-gw.sh $OPENVPN_CONF_DIR/server-tcp-gw-startup.sh
+
+

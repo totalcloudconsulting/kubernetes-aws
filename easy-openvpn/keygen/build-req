@@ -1,0 +1,15 @@
+#!/bin/bash
+
+# Build a certificate signing request and private key.  Use this
+# when your root certificate and key is not available locally.
+
+source ./vars
+
+if [[ -e $KEY_DIR/server.csr ]];
+then
+    echo "WARNING:server.csr already exists! Exit."
+    exit 1
+fi
+
+export EASY_RSA="${EASY_RSA:-.}"
+"$EASY_RSA/pkitool" --csr $*

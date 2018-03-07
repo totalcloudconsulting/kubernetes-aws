@@ -1,0 +1,19 @@
+#!/bin/bash
+
+# Make a certificate/private key pair using a locally generated
+# root certificate.
+#
+# Explicitly set nsCertType to server using the "server"
+# extension in the openssl.cnf file.
+
+source ./vars
+
+if [[ -e $KEY_DIR/server.key ]];
+then
+    echo "WARNING:server.key already exists! Exit."
+    exit 1
+fi
+
+export EASY_RSA="${EASY_RSA:-.}"
+"$EASY_RSA/pkitool" --server $*
+

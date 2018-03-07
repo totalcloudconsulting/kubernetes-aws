@@ -1,0 +1,16 @@
+#!/bin/bash
+
+# Make an intermediate CA certificate/private key pair using a locally generated
+# root certificate.
+
+source ./vars
+
+if [[ -e $KEY_DIR/ca.crt ]];
+then
+    echo "WARNING:CA CERT already exists! Exit."
+    exit 1
+fi
+
+
+export EASY_RSA="${EASY_RSA:-.}"
+"$EASY_RSA/pkitool" --inter $*

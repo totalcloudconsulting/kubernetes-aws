@@ -165,6 +165,16 @@ if docker_awslogs_group != "NONE":
 #print "Add calico inter-AZ networking ..."
 kops[0]['spec']['networking'] = {"calico": {"crossSubnet":True}}
 
+#print "Add swap accept in nodes
+kops[0]['spec']['kubelet'] = {"failSwapOn":False}
+
+#print "Add swap accept in nodes
+kops[1]['spec']['kubelet'] = {"failSwapOn":False}
+
+#print "Add swap accept in nodes
+kops[2]['spec']['kubelet'] = {"failSwapOn":False}
+
+
 ## how to add extra policies to specs:
 ## AWS ECR + AWS ALB
 ## additionalPolicies': {'node': '[\n  {\n    "Effect": "Allow",\n    "Action": ["dynamodb:*"],\n    "Resource": ["*"]\n  },\n  {\n    "Effect": "Allow",\n    "Action": ["es:*"],\n    "Resource": ["*"]\n  }\n]\n'},
