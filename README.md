@@ -19,7 +19,7 @@ The project keeps focus on security, transparency and simplicity. This guide is 
 
 [One-Click launch CloudFormation stack: Full scale](https://console.aws.amazon.com/cloudformation/home?region=eu-west-1#/stacks/new?stackName=Total-Cloud-K8s-Full&templateURL=https://s3-eu-west-1.amazonaws.com/tc2-kubernetes/latest/cfn-templates/latest.yaml )
 
-# Resources deployed
+## Resources deployed
 
 * one VPC: 3 private and 3 public subnets in 3 different Availability Zones, Gateway type Private Link routes to S3 and DynamoDB (free),
 * three NAT gateways in each public subnet in each 3 Availability Zones,
@@ -43,7 +43,7 @@ The project keeps focus on security, transparency and simplicity. This guide is 
 
 [One-Click launch CloudFormation stack: Small footptint](https://console.aws.amazon.com/cloudformation/home?region=eu-west-1#/stacks/new?stackName=Total-Cloud-K8s-Small&templateURL=https://s3-eu-west-1.amazonaws.com/tc2-kubernetes/latest/cfn-templates/latest-single-natinstance.yaml )
 
-# Resources deployed
+## Resources deployed
 
 * one VPC: 3 private and 3 public subnets in 3 different Availability Zones, Gateway type Private Link routes to S3 and DynamoDB (free),
 * one self-healing Kubernetes Master instance in one Availability Zone's private subnet,
