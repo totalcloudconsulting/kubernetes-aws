@@ -17,7 +17,7 @@ do
   echo "Delete ingress: $i..."; 
   kubectl delete ingress $i --force;
   ingress="YES"
-  sleep 10
+  sleep 20
   
   for j in `aws elbv2 describe-target-groups --region ${AWSRegion} --output text | grep arn | grep TARGETGROUPS | awk '{print $10}'`; 
   do
@@ -34,7 +34,7 @@ done
 #wait for target group deletion, it is async wait to remove ALB target groups
 if [[ "${ingress}" == "YES" ]];
 then
-  sleep 10
+  sleep 20
 fi
 
 #delete cluster
