@@ -1,55 +1,87 @@
-# Production grade Kubernetes deployment on AWS Cloud
+# Production grade Kubernetes cluster deployment on AWS cloud
 
-This AWS CloudFormation template and scripts sets up a flexible, secure, fault-tolerant AWS environment and launches a Kubernetes cluster automatically into a configuration of your choice.
+These AWS CloudFormation templates and scripts set up a flexible, secure, fault-tolerant Kubernetes cluster in AWS private VPC environment automatically, into a configuration of your choice. The project main purposes are: simple, painless, script-less, easy Kubernetes environment deployment in 1 step.
 
-We created the project to show how easy to deploy a highly available, fault tolerant, full-scale Kubernetes environment on Amazon Web Services (AWS) Cloud, using Kubernetes Operations (kops) and AWS CloudFormation (CFN) templates together that automate the process. The final result is 100% Kubernetes (and "kops") compatible deployment, what you can manage from either the Bastion host or HTTPS API endpoint remotely.
+We provide two deployment version with the same underlying private VPC toplogy:
 
-We use the popular tool "kops" because it is the easiest and most elegant way to get a production grade Kubernetes cluster up and running. We keep focus on security and transparency for the whole deployment process. The guide is for IT architects, administrators, and DevOps professionals who are planning to implement  their Kubernetes workloads on AWS.
+* full scale: fault tolerant, production grade architecture (multi master, multi node, NAT gateways),
+* small footprint: single master, single NAT instance, single node deployment (for testing, demo, first steps)
 
-Combination of AWS Systems Manager (SSM) and AWS Lambda help with graceful cluster tear-down.
+Originally we created this project to make easy to deploy a working Kubernetes cluster on Amazon Web Services (AWS) Cloud, now it supports full-scale, prouction grade setup as well. The Kubernetes Operations ("kops") project and AWS CloudFormation (CFN) templates togedther with bootstrap scripts, the whole process has automated. The final result is a Kubernetes cluster, with Kops compatibility, what you can manage from either the Bastion host, via OpenVPN or using HTTPS API through AWS ELB endpoint.
+
+The project keeps focus on security, transparency and simplicity. This guide is mainly created for developers, IT architects, administrators, and DevOps professionals who are planning to implement their Kubernetes workloads on AWS.
 
 
 
-# Architecture
+# Full-scale architecture
 
-[![N|Solid](docs/k8s-fullscale.png)](https://tc2.hu)
+[![N|Solid](docs/k8s-fullscale.png)](https://totalcloudconsulting.hu/en/solutions/containerization)
 
+# One-Click AWS Launch (new VPC)
+
+[AWS One-Click CloudFormation Stack: Full scale](https://console.aws.amazon.com/cloudformation/home?region=eu-west-1#/stacks/new?stackName=Total-Cloud-K8s-Full&templateURL=https://s3-eu-west-1.amazonaws.com/tc2-kubernetes/latest/cfn-templates/latest.yaml )
 
 # Resources deployed
 
-* one VPC: 3 private and 3 public subnets (6) in 3 different Availability Zones, Private Link routes to S3 and DynamoDB (free)
-* three NAT gateways in each public subnet in each 3 Availability Zones
-* three  self-healing Kubernetes Master instances in each Availability Zone's private subnet AutoScaling group (separate ASGs)
-* three Node instances in AutoScalinn groups,  in each Availability Zone (one ASG)
-* one self-healing Bastion host in 1 Availability Zone's public subnet, fixed Ubuntu 16.04 LTS,
-* four Elastic IP Addresses: 3 for NAT Gateways, 1 for Bastion host
-* one internal or public ELB load balancer for HTTPS access to the Kubernetes API
-* two CloudWatch Logs group for Bastion hosts and Kubernetes Docker images
-* one Lambda function for graceful teardown through SSM
-* two security groups 1 for Bastion host, 1 for Kubernetes Hosts (Master and Nodes)
-* a few IAM roles for Bastion hosts, Nodes and Master instances
-* one S3 bucket for kops state store
-* one Route53 private zone for VPC
+* one VPC: 3 private and 3 public subnets in 3 different Availability Zones, Gateway type Private Link routes to S3 and DynamoDB (free),
+* three NAT gateways in each public subnet in each 3 Availability Zones,
+* three  self-healing Kubernetes Master instances in each Availability Zone's private subnet, in AutoScaling groups (separate ASGs),
+* three Node instances in one AutoScaling group, expended over all Availability Zones,
+* one self-healing bastion host in 1 Availability Zone's public subnet,
+* four Elastic IP Addresses: 3 for NAT Gateways, 1 for Bastion host,
+* one internal (or public: optional) ELB load balancer for HTTPS access to the Kubernetes API,
+* two CloudWatch Logs group for bastion host and Kubernetes Docker pods (optional),
+* one Lambda function for graceful teardown with AWS SSM,
+* two security groups: 1 for bastion host, 1 for Kubernetes Hosts (Master and Nodes),
+* IAM roles for bastion hosts, K8s Nodes and Master hosts,
+* one S3 bucket for kops state store,
+* one Route53 private zone for VPC (optional)
+
+
+# Small footprint architecture
+
+[![N|Solid](docs/k8s-small-footprint.png)](https://totalcloudconsulting.hu/en/solutions/containerization)
+
+# One-Click AWS Launch (new VPC)
+
+[AWS One-Click CloudFormation Stack: Small footptint](https://console.aws.amazon.com/cloudformation/home?region=eu-west-1#/stacks/new?stackName=Total-Cloud-K8s-Small&templateURL=https://s3-eu-west-1.amazonaws.com/tc2-kubernetes/latest/cfn-templates/latest-single-natinstance.yaml )
+
+# Resources deployed
+
+* one VPC: 3 private and 3 public subnets in 3 different Availability Zones, Gateway type Private Link routes to S3 and DynamoDB (free),
+* one self-healing Kubernetes Master instance in one Availability Zone's private subnet,
+* one Node instance in AutoScaling groups, expended over all Availability Zones,
+* one self-healing bastion host in 1 Availability Zone's public subnet,
+* bastion host is the NAT instance router for private subnets,
+* four Elastic IP Addresses: 3 for NAT Gateways, 1 for Bastion host,
+* one internal (or public: optional) ELB load balancer for HTTPS access to the Kubernetes API,
+* two CloudWatch Logs group for bastion host and Kubernetes Docker pods (optional),
+* one Lambda function for graceful teardown with AWS SSM,
+* two security groups: 1 for bastion host, 1 for Kubernetes Hosts (Master and Nodes)
+* IAM roles for bastion hosts, K8s Nodes and Master hosts
+* one S3 bucket for kops state store,
+* one Route53 private zone for VPC (optional)
 
 
 # How To build your cluster
 
 * Sign up for an AWS account at https://aws.amazon.com.
 
-* Launch the [CloudFormation template](https://console.aws.amazon.com/cloudformation/home?region=eu-west-1#/stacks/new?stackName=Total-Cloud-Kubernetes&templateURL=https://s3-eu-west-1.amazonaws.com/tc2-kubernetes/latest/cfn-templates/latest.yaml )] into a new VPC, if you want to build a new AWS infrastructure. [View template](https://s3-eu-west-1.amazonaws.com/tc2-kubernetes/latest/cfn-templates/latest.yaml)
+Choose which deployment type you prefer:
 
-The cluster (via bastion host) creation lasts around 10 minutes, please be patient.
+* Full scale deployment: Launch the [AWS One-Click CloudFormation Stack: Full scale](https://console.aws.amazon.com/cloudformation/home?region=eu-west-1#/stacks/new?stackName=Total-Cloud-K8s-Full&templateURL=https://s3-eu-west-1.amazonaws.com/tc2-kubernetes/latest/cfn-templates/latest.yaml ) Template: [View template](https://s3-eu-west-1.amazonaws.com/tc2-kubernetes/latest/cfn-templates/latest.yaml )
 
-* Test the Kubernetes cluster by following the step-by-step instructions in the deployment guide.
+* Small fottprint deployment: Launch the [AWS One-Click CloudFormation Stack: Small footptint](https://console.aws.amazon.com/cloudformation/home?region=eu-west-1#/stacks/new?stackName=Total-Cloud-K8s-Small&templateURL=https://s3-eu-west-1.amazonaws.com/tc2-kubernetes/latest/cfn-templates/latest-single-natinstance.yaml ) Template: [View template](https://s3-eu-west-1.amazonaws.com/tc2-kubernetes/latest/cfn-templates/latest-single-natinstance.yaml )
 
-To customize your deployment, you can choose different instance types for the Kubernetes cluster and the bastion host, choose the number of worker nodes, APi endpoint, install plug-ins.  
+
+**The cluster (via bastion host) creation lasts around 10-15 minutes, please be patient.**
+
+* Connect to your Kubernetes cluster by following the step-by-step instructions in the deployment guide.
+
+To customize your deployment, you can choose different instance types for the Kubernetes cluster and the bastion host, choose the number of worker nodes, API endpoint type, logging option, OpenVPN install,  plug-ins.  
 
 For detailed instructions, see the deployment guide.
 
-
-# One-Click AWS Launch (new VPC)
-
-[AWS One-Click CloudFormation Stack](https://console.aws.amazon.com/cloudformation/home?region=eu-west-1#/stacks/new?stackName=Total-Cloud-Kubernetes&templateURL=https://s3-eu-west-1.amazonaws.com/tc2-kubernetes/latest/cfn-templates/latest.yaml )
 
 The cluster (via bastion host) creation lasts around 10 minutes, please be patient.
 
@@ -57,7 +89,7 @@ The cluster (via bastion host) creation lasts around 10 minutes, please be patie
 
 # Logs
 
-ALL container logs sent to AWS CloudWatch Logs. Logs aren't  available internally via API (e.g. kubectl logs ... command: "Error response from daemon: configured logging driver does not support reading") Please check the AWS CloudWatch / Logs / K8s* for container logs.
+Optional: If you choose in template options, all container logs are sent to AWS CloudWatch Logs. In that case, local "kubectl" logs aren't  available internally via API call (e.g. kubectl logs ... command: "Error response from daemon: configured logging driver does not support reading") Please check the AWS CloudWatch / Logs / K8s* for container logs.
 
 # Abstract paper
 

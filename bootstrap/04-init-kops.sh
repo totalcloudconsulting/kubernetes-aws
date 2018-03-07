@@ -19,7 +19,7 @@ AWSCfnStackName=${16}
 S3BootstrapBucketName=${17}
 S3BootstrapBucketPrefix=${18}
 KubernetesDashboard=${19}
-KubernetesHeapsterMonitoring=${20}
+KubernetesHeapsterMonitoring_NOT_USED=${20}
 KubernetesALBIngressController=${21}
 KubernetesClusterAutoscaler=${22}
 PrivateSubnet3=${23}
@@ -149,7 +149,8 @@ chmod 600 id_rsa.pub
 #defione image for nodes
 #Debian Jessie is the default if no option
 k8s_ami=""
-cluster_autoscaler_certpath="/etc/ssl/certs/ca-certificates.crt"
+host_ssl_certpath="/etc/ssl/certs/ca-certificates.crt"
+host_ssl_certdir="/etc/ssl/certs"
 if [ "${Ec2K8sAMIOsType}" == "CoreOS-Latest" ]; 
 then
     ami_coreos=`aws ec2 describe-images --owner=595879546273 --filters "Name=virtualization-type,Values=hvm" "Name=name,Values=CoreOS-stable*" --query 'Images[*].[ImageId,CreationDate]' --output text --region ${AWSRegion} | sort -k2 -r | head -n1 | awk '{print $1}'`
@@ -166,14 +167,16 @@ if [ "${Ec2K8sAMIOsType}" == "CentOS-7-Latest" ];
 then
     ami_centos=`aws ec2 describe-images --owners 410186602215 --filters "Name=virtualization-type,Values=hvm" "Name=name,Values=CentOS Linux 7 x86_64 HVM EBS*" --query 'Images[*].[ImageId,CreationDate]' --output text --region ${AWSRegion} | sort -k2 -r | head -n1 | awk '{print $1}'`
     k8s_ami="--image=${ami_centos}"
-    cluster_autoscaler_certpath="/etc/pki/ca-trust/extracted/openssl/ca-bundle.trust.crt"
+    host_ssl_certpath="/etc/pki/ca-trust/extracted/openssl/ca-bundle.trust.crt"
+    host_ssl_certdir="/etc/pki/ca-trust/extracted/pem"
 fi
 
 if [ "${Ec2K8sAMIOsType}" == "RHEL-7-Latest" ]; 
 then
     ami_rhel7=`aws ec2 describe-images --owner=309956199498 --filters "Name=virtualization-type,Values=hvm" "Name=name,Values=RHEL-7.*" --query 'Images[*].[ImageId,CreationDate]' --output text --region ${AWSRegion} | sort -k2 -r | head -n1 | awk '{print $1}'`
     k8s_ami="--image=${ami_rhel7}"
-    cluster_autoscaler_certpath="/etc/pki/ca-trust/extracted/openssl/ca-bundle.trust.crt"
+    host_ssl_certpath="/etc/pki/ca-trust/extracted/openssl/ca-bundle.trust.crt"
+    host_ssl_certdir="/etc/pki/ca-trust/extracted/pem"
 fi
 
 echo "K8s AMI: ${k8s_ami}"
@@ -391,7 +394,7 @@ then
   MAX_NODES=${Ec2K8sNodeCapacityMax}
   AWS_REGION=${AWSRegion}
   GROUP_NAME="nodes.${k8sclustername}"
-  SSL_CERT_PATH=${cluster_autoscaler_certpath}
+  SSL_CERT_PATH=${host_ssl_certpath}
 
   addon=cluster-autoscaler.yml
 
@@ -422,22 +425,19 @@ then
 fi
 
 
-# dynamic stogareclass
-kubectl apply -f dynamic-storageclass.yml
-
-#monitoring
-if [ "${KubernetesHeapsterMonitoring}" == "true" ]; 
-then
-  echo "Install Heapster Monitoring ..."
-  kubectl apply -f monitoring-standalone.yaml
-fi
-
-
 # kubernetes dashboard
 if [ "${KubernetesDashboard}" == "true" ]; 
 then
+  echo "Install monitoring plugins ( influxDB, grafana, heapster ) ..."
+  addon=kubernetes-monitoring.yaml
+  
+  SSL_CERT_DIR=${host_ssl_certdir}
+  sed -i -e "s@{{SSL_CERT_DIR}}@${SSL_CERT_DIR}@g" "${addon}"
+  kubectl apply -f ${addon}
+  
   echo "Install Kubernetes Dashboard ..."
   kubectl apply -f kubernetes-dashboard.yaml
+  
 fi
 
 #sync cluster state to local folder
