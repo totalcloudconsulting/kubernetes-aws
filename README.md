@@ -107,4 +107,4 @@ https://totalcloudconsulting.hu/en/solutions
 
 # Costs and licenses
 
-You are responsible for the cost of the AWS services used while running this deployment.
+You are responsible for the cost of the AWS services used while running this deployment. Our project hosted under Apache 2.0 open source license.
