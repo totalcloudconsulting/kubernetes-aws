@@ -15,9 +15,9 @@ The project keeps focus on security, transparency and simplicity. This guide is 
 
 # Full-scale architecture
 
-[![N|Solid](docs/k8s-fullscale.png)](https://totalcloudconsulting.hu/en/solutions/containerization)
+[![N|Solid](https://raw.githubusercontent.com/totalcloudconsulting/kubernetes-aws/master/docs/k8s-fullscale.png)](https://totalcloudconsulting.hu/en/solutions/containerization)
 
-[One-Click launch CloudFormation Stack: Full scale](https://console.aws.amazon.com/cloudformation/home?region=eu-west-1#/stacks/new?stackName=Total-Cloud-K8s-Full&templateURL=https://s3-eu-west-1.amazonaws.com/tc2-kubernetes/latest/cfn-templates/latest.yaml )
+[One-Click launch CloudFormation stack: Full scale](https://console.aws.amazon.com/cloudformation/home?region=eu-west-1#/stacks/new?stackName=Total-Cloud-K8s-Full&templateURL=https://s3-eu-west-1.amazonaws.com/tc2-kubernetes/latest/cfn-templates/latest.yaml )
 
 # Resources deployed
 
@@ -38,10 +38,10 @@ The project keeps focus on security, transparency and simplicity. This guide is 
 
 # Small footprint architecture
 
-[![N|Solid](docs/k8s-small-footprint.png)](https://totalcloudconsulting.hu/en/solutions/containerization)
+[![N|Solid](https://raw.githubusercontent.com/totalcloudconsulting/kubernetes-aws/master/docs/k8s-small-footprint.png)](https://totalcloudconsulting.hu/en/solutions/containerization)
 
 
-[One-Click launch CloudFormation Stack: Small footptint](https://console.aws.amazon.com/cloudformation/home?region=eu-west-1#/stacks/new?stackName=Total-Cloud-K8s-Small&templateURL=https://s3-eu-west-1.amazonaws.com/tc2-kubernetes/latest/cfn-templates/latest-single-natinstance.yaml )
+[One-Click launch CloudFormation stack: Small footptint](https://console.aws.amazon.com/cloudformation/home?region=eu-west-1#/stacks/new?stackName=Total-Cloud-K8s-Small&templateURL=https://s3-eu-west-1.amazonaws.com/tc2-kubernetes/latest/cfn-templates/latest-single-natinstance.yaml )
 
 # Resources deployed
 
