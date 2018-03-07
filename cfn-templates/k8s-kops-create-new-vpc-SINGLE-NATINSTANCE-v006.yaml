@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: 
-  AWS Kubernetes (K8s) / KOPS CFN stack template. 
+  AWS Kubernetes / kops stack, 
   Single AZ Bastion (self-healing),
   Single AZ K8s Mastser,
   Single NAT Instance (the Bastion host is the NAT instance),
@@ -84,7 +84,7 @@ Metadata:
       InstallKubernetesIntoVPC:
         default: "Install Kubernetes via KOPS into the newly created VPC"
       KubernetesLogToAWSCloudwatchLogs:
-        default: "Send Docker container logs to AWS Cloudwatch Logs"
+        default: "Send K8s pod (running container) logs to AWS Cloudwatch Logs"
 
 Parameters:
   VPCIPv4CIDRBlock:
@@ -1219,7 +1219,7 @@ Resources:
                 #!/bin/bash
                 
                 cd /opt/bastion-init
-                ./tear-down-cluster.sh ${AWS::Region}
+                ./tear-down-cluster.sh ${AWS::Region} >> /tmp/init-kops.log 2>&1
           
           commands:
             "00-enable-cfn-hup":
@@ -1476,7 +1476,7 @@ Outputs:
       ubuntu@${BastionHost.PublicIp}:/opt/openvpn-keys/* ./
   
   AWSLogs:
-    Description: Get logs from Kubernetes Docker contaners and Bastion host bootstrap (if set in template).
+    Description: Get logs from Kubernetes pods and bastion logs (optional).
     Value: !Sub >-
       Bastionhost - k8s-bastion-${AWS::StackName}
       Dcoker containers - k8s-all-cluster-logs-${AWS::StackName}

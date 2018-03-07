@@ -116,6 +116,9 @@ fi
 echo "KOPS state S3 bucket: ${s3bucket}"
 
 export KOPS_STATE_STORE=s3://${s3bucket}
+
+echo ${VPC} >> /opt/kops-state/KOPS_VPC
+
 echo ${KOPS_STATE_STORE} > /opt/kops-state/KOPS_STATE_STORE
 echo ${PrivateSubnet1} > /opt/kops-state/KOPS_PRIVATE_SUBNETS
 echo ${PrivateSubnet2} >> /opt/kops-state/KOPS_PRIVATE_SUBNETS
