@@ -25,12 +25,26 @@ do
   for j in `aws elbv2 describe-target-groups --region ${AWSRegion} --output text | grep arn | grep TARGETGROUPS | awk '{print $10}'`; 
   do
     echo "Target group: $j ..."; 
-    N=`aws elbv2 describe-tags --resource-arns $j --region ${AWSRegion} --output text | grep $i`; 
-    if [[ -n "${N}" ]];
-    then
-      echo "DELETE TARGET GROUP: ${j} ...";
-      aws elbv2 delete-target-group --target-group-arn $j --region ${AWSRegion}
-    fi
+    for h in {0..20};
+    do
+      N=`aws elbv2 describe-tags --resource-arns $j --region ${AWSRegion} --output text | grep $i`; 
+      if [[ -n "${N}" ]];
+      then
+        echo "DELETE TARGET GROUP: ${j} ...";
+        H=`aws elbv2 delete-target-group --target-group-arn $j --region ${AWSRegion}`
+        if [[ ! -n $H ]]; 
+        then 
+          echo "Target group deleted.";
+          break
+        else
+          echo "Waiting to delete target group ${H} ..."
+          sleep 5
+          continue
+        fi
+      else
+        break;
+      fi
+    done
   done
 done
 
