@@ -222,9 +222,9 @@ Parameters:
   Ec2K8sAMIOsType:
     Description: Host Operating System Type for K8s Master and Nodes on Ec2 instances
     Type: String
-    Default: CoreOS-Latest
+    Default: Debian-Jessie
     AllowedValues:
-    - CoreOS-Latest
+    #- CoreOS-Latest
     - Debian-Jessie
     - Ubuntu-1604
     - CentOS-7-Latest

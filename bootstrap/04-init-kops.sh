@@ -41,7 +41,7 @@ if [[ ! -e /usr/local/bin/kops ]];
 then 
   echo "Download latest KOPS...";
   #wget -O kops https://github.com/kubernetes/kops/releases/download/$(curl -s https://api.github.com/repos/kubernetes/kops/releases/latest | grep tag_name | cut -d '"' -f 4)/kops-linux-amd64 --no-verbose
-  wget -O kops https://github.com/kubernetes/kops/releases/download/1.9.0-alpha.1/kops-linux-amd64 --no-verbose
+  wget -O kops https://github.com/kubernetes/kops/releases/download/1.9.0-beta.1/kops-linux-amd64 --no-verbose
   sudo mv ./kops /usr/local/bin/
 fi
 
@@ -49,7 +49,7 @@ if [[ ! -e /usr/local/bin/kubectl ]];
 then 
   echo "Download latest KUBECTL...";
   #wget -O kubectl https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl --no-verbose
-  wget -O kubectl https://storage.googleapis.com/kubernetes-release/release/v1.9.3/bin/linux/amd64/kubectl --no-verbose
+  wget -O kubectl https://storage.googleapis.com/kubernetes-release/release/v1.9.6/bin/linux/amd64/kubectl --no-verbose
   mv ./kubectl /usr/local/bin/kubectl
 fi
 
