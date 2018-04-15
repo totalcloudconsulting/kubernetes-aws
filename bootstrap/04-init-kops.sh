@@ -41,7 +41,7 @@ if [[ ! -e /usr/local/bin/kops ]];
 then 
   echo "Download latest KOPS...";
   #wget -O kops https://github.com/kubernetes/kops/releases/download/$(curl -s https://api.github.com/repos/kubernetes/kops/releases/latest | grep tag_name | cut -d '"' -f 4)/kops-linux-amd64 --no-verbose
-  wget -O kops https://github.com/kubernetes/kops/releases/download/1.9.0-beta.1/kops-linux-amd64 --no-verbose
+  wget -O kops https://github.com/kubernetes/kops/releases/download/1.9.0/kops-linux-amd64 --no-verbose
   sudo mv ./kops /usr/local/bin/
 fi
 
