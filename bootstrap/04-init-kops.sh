@@ -49,7 +49,7 @@ if [[ ! -e /usr/local/bin/kubectl ]];
 then 
   echo "Download latest KUBECTL...";
   #wget -O kubectl https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl --no-verbose
-  wget -O kubectl https://storage.googleapis.com/kubernetes-release/release/v1.9.6/bin/linux/amd64/kubectl --no-verbose
+  wget -O kubectl https://storage.googleapis.com/kubernetes-release/release/v1.9.3/bin/linux/amd64/kubectl --no-verbose
   mv ./kubectl /usr/local/bin/kubectl
 fi
 
@@ -392,7 +392,7 @@ then
   #RH certpath: /etc/pki/ca-trust/extracted/openssl/ca-bundle.trust.crt
 
   CLOUD_PROVIDER=aws
-  IMAGE=gcr.io/google_containers/cluster-autoscaler:v1.0.3
+  IMAGE=gcr.io/google_containers/cluster-autoscaler:v1.1.1
   MIN_NODES=${Ec2K8sNodeCapacityMin}
   MAX_NODES=${Ec2K8sNodeCapacityMax}
   AWS_REGION=${AWSRegion}
