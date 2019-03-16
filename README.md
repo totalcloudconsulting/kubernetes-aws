@@ -2,9 +2,9 @@
 
 These AWS CloudFormation templates and scripts set up a flexible, secure, fault-tolerant Kubernetes cluster in AWS private VPC environment, into a configuration of your choice. The project main purposes are: quick, simple, painless, easy Kubernetes environment deployment in 10 minutes.
 
-Our project based on Kubernetes Operations ("kops") combined with AWS CloudFormation (CFN) templates together with bootstrap scripts, help to automate the whole process. The final result is a 100% compatible Kubernetes cluster, what you can manage from either the Bastion host, via OpenVPN or using it's HTTPS API through AWS ELB endpoint.
+Our solution based on Kubernetes Operations ("kops") combined with AWS CloudFormation (CFN) templates together with bootstrap scripts, help to automate the whole process. The final result is a 100% compatible Kubernetes cluster, what you can manage from either the Bastion host, via OpenVPN or using it's HTTPS API through AWS ELB endpoint.
 
-We always keeps focus on security, transparency and simplicity. This guide is mainly created for developers, IT architects, administrators, and DevOps professionals who are planning to easily deploy their Kubernetes workloads on AWS.
+We always keep focus on security, transparency and simplicity. This guide is mainly created for developers, IT architects, administrators, and DevOps professionals who are planning to easily deploy their Kubernetes workloads on AWS.
 
 
 # Architecture
