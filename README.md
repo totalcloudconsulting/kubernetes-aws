@@ -1,6 +1,6 @@
 # AWS Quick Start: Production grade Kubernetes cluster deployment on AWS cloud
 
-These AWS CloudFormation templates and scripts set up a flexible, secure, fault-tolerant Kubernetes cluster in AWS private VPC environment, into a configuration of your choice. The project main purposes are: quick, simple, painless, easy Kubernetes environment deployment in 10 minutes.
+This AWS Quick-Start ("one-click solution") based on AWS CloudFormation templates and scripts set up a flexible, secure, fault-tolerant Kubernetes cluster in AWS private VPC environment, into a configuration of your choice. The project main purposes are: quick, simple, painless, easy Kubernetes environment deployment in 10 minutes.
 
 Our solution based on Kubernetes Operations ("kops") combined with AWS CloudFormation (CFN) templates together with bootstrap scripts, help to automate the whole process. The final result is a 100% compatible Kubernetes cluster, what you can manage from either the Bastion host, via OpenVPN or using it's HTTPS API through AWS ELB endpoint.
 
