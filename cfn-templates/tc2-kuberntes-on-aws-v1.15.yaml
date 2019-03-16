@@ -226,7 +226,7 @@ Parameters:
       letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen
       (-).
 
-    Default: tc2-demo-kubernetes-bootstrap
+    Default: tc2-kubernetes
     Description: Bootstrap Scripts in S3 for K8s cluster creation
     Type: String
   
