@@ -1,12 +1,13 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 
-  AWS Kubernetes / kops stack, 
-  Single AZ Bastion (self-healing),
-  Single AZ K8s Mastser,
-  Single NAT Instance (the Bastion host is the NAT instance),
-  Automatic AutoScaled K8s Nodes,
+Description: '
+  Kubernetes CFN stack with KOPS,
+  Single AZ Bastion (self-healing by CloudWatch) (EIP),
+  Single AZ K8s Mastser (self-healing by ASG),
+  Single AWS NAT Gateway Instance (EIP),
+  Multi AZ Automatic AutoScaled  K8s Nodes,
   Private Multi-AZ VPC,
-  Copyright Tamas Tobi / Total Cloud Consulting @ 2018'
+  AWS EFS,
+  Copyright Tamas Tobi / Total Cloud Consulting @ 2019'
 
 Metadata:
   AWS::CloudFormation::Interface:
@@ -37,7 +38,14 @@ Metadata:
       - KubernetesClusterAutoscaler
       - KubernetesDashboard
       - KubernetesALBIngressController
-      - KubernetesLogToAWSCloudwatchLogs
+      - KubernetesExternalDNSPlugin
+      - KubernetesExternalDNSName
+      - KubernetesExternalDNSTXTSelector
+      - KubernetesDashboardUsername
+      - KubernetesDashboardPassword
+      - KOPSReleaseVersion
+      - KUBECTLReleaseVersion
+      - HELMReleaseVersion
     - Label:
         default: Bastion Host OpenVPN Configuration
       Parameters:
@@ -83,8 +91,22 @@ Metadata:
         default: "Install CoreOS alb-ingress-controller plugin"
       InstallKubernetesIntoVPC:
         default: "Install Kubernetes via KOPS into the newly created VPC"
-      KubernetesLogToAWSCloudwatchLogs:
-        default: "Send K8s pod (running container) logs to AWS Cloudwatch Logs"
+      KubernetesExternalDNSPlugin:
+        default: "Install external DNS plugin for ALB ingress controller"
+      KubernetesExternalDNSName:
+        default: "External DNS plugin: ALB managed DNS domain name (e.g.: example.com)"
+      KubernetesExternalDNSTXTSelector:
+        default: "External DNS TXT record selector ID"
+      KubernetesDashboardUsername:
+        default: "Kubernetes Dashboard: HTTP auth username"
+      KubernetesDashboardPassword:
+        default: "Kubernetes Dashboard: HTTP auth password"
+      KOPSReleaseVersion:
+        default: "KOPS relese version number"
+      KUBECTLReleaseVersion:
+        default: "KUBECTL release version number"
+      HELMReleaseVersion:
+        default: "HELM release version number"
 
 Parameters:
   VPCIPv4CIDRBlock:
@@ -117,17 +139,18 @@ Parameters:
   Ec2BastionInstanceType:
     Description: EC2 type for the Bastion instance.
     Type: String
-    Default: t2.micro
+    Default: t3.micro
     AllowedValues:
+    - t3.micro
+    - t3.small
+    - t3.medium
+    - t3.large
     - t2.micro
     - t2.small
     - t2.medium
     - t2.large
-    - m3.medium
-    - m4.large
     - m5.large
     - m5.xlarge
-    - c4.large
     - c5.large
     - c5.xlarge
     ConstraintDescription: must be a valid EC2 instance type.
@@ -135,43 +158,43 @@ Parameters:
   Ec2K8sMasterInstanceType:
     Description: EC2 type for the K8s Master instance(s).
     Type: String
-    Default: t2.small
+    Default: t3.small
     AllowedValues:
     - t2.small
     - t2.medium
     - t2.large
-    - m3.medium
+    - t3.small
+    - t3.medium
+    - t3.large
     - m4.large
     - m4.xlarge
     - m5.large
     - m5.xlarge
-    - m5.2xlarge
     - c4.large
     - c4.xlarge
     - c5.large
     - c5.xlarge
-    - c5.2xlarge
     ConstraintDescription: must be a valid EC2 instance type.
 
   Ec2K8sNodeInstanceType:
     Description: EC2 type for the K8s Node instance(s).
     Type: String
-    Default: t2.small
+    Default: t3.small
     AllowedValues:
     - t2.small
     - t2.medium
     - t2.large
-    - m3.medium
+    - t3.small
+    - t3.medium
+    - t3.large
     - m4.large
     - m4.xlarge
     - m5.large
     - m5.xlarge
-    - m5.2xlarge
     - c4.large
     - c4.xlarge
     - c5.large
     - c5.xlarge
-    - c5.2xlarge
     ConstraintDescription: must be a valid EC2 instance type.
 
   Ec2K8sNodeCapacityMin:
@@ -179,15 +202,15 @@ Parameters:
     Description: The initial number of Kubernetes Node Instances
     Type: Number
     MinValue: '1'
-    MaxValue: '100'
+    MaxValue: '10'
     ConstraintDescription: must be between 1 and 10 EC2 instances.
     
   Ec2K8sNodeCapacityMax:
-    Default: '10'
+    Default: '20'
     Description: The MAXIMUM number of Kubernetes Node Instances
     Type: Number
     MinValue: '1'
-    MaxValue: '100'
+    MaxValue: '50'
     ConstraintDescription: must be between 1 and 10 EC2 instances.
 
   Ec2EBSK8sDiskSizeGb:
@@ -203,7 +226,7 @@ Parameters:
       letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen
       (-).
 
-    Default: tc2-kubernetes
+    Default: tc2-demo-kubernetes-bootstrap
     Description: Bootstrap Scripts in S3 for K8s cluster creation
     Type: String
   
@@ -218,19 +241,16 @@ Parameters:
 
 
   Ec2K8sAMIOsType:
-    Description: Host Operating System Type for K8s Master and Nodes on Ec2 instances
+    Description: Host Operating System Type for Kubernets cluster instances
     Type: String
-    Default: Debian-Jessie
+    Default: AmazonLinux2
     AllowedValues:
-    #- CoreOS-Latest
-    - Debian-Jessie
-    - Ubuntu-1604
-    - CentOS-7-Latest
-    - RHEL-7-Latest
+    - AmazonLinux2
+    - Ubuntu-1804-LTS
     ConstraintDescription: must be a valid OS type.
     
   VPNNumberOfPreGeneratedCerts:
-    Description: OpenVPN number of pre-generated certificates
+    Description: Number of pre-generated OpenVPN certificates
     Default: 5
     Type: Number
     MinValue: 1
@@ -258,7 +278,7 @@ Parameters:
     Description: >-
       Install and auto-configure OpenVPN: https://github.com/tatobi/easy-openvpn
     Type: String
-    Default: 'true'
+    Default: 'false'
     AllowedValues:
       - 'true'
       - 'false'
@@ -272,7 +292,7 @@ Parameters:
       - 'false'
 
   KubernetesALBIngressController:
-    Description: If true, install CoreOS ALB ingress controller.
+    Description: If true, install ALB ingress controller.
     Type: String
     Default: 'true'
     AllowedValues:
@@ -286,14 +306,70 @@ Parameters:
     AllowedValues:
       - 'true'
       - 'false'
-    
-  KubernetesLogToAWSCloudwatchLogs:
-    Description: If true, all Docker container logs redirected to AWS ClkoudWatch Logs.
+
+  KubernetesExternalDNSPlugin:
+    Description: If true, DNS external login is installed.
     Type: String
-    Default: 'false'
+    Default: 'true'
     AllowedValues:
       - 'true'
       - 'false'
+
+  KubernetesExternalDNSName:
+    Description: Name of the ALB managed DNS domain
+    Type: String
+    ConstraintDescription: DNS Name can include numbers, lowercase
+      letters, uppercase letters, dot(.), and hyphens (-). It cannot start or end with a hyphen (-).
+      
+  KubernetesExternalDNSTXTSelector:
+    Description: ALB managed DNS domain record TXT selector
+    Type: String
+    MinLength: '3'
+    Default: 'abcdefghijk'
+    AllowedPattern: "^[0-9a-zA-Z]+([0-9a-zA-Z]*[0-9a-zA-Z])*$"
+    ConstraintDescription: "ALB: DNS TXT record selector ID can include numbers, lowercase
+      letters, uppercase letters. TXT domain record example: (e.g.: example.io IN TXT heritage=external-dns,external-dns/owner=uN3roowak7yeipuz)"
+      
+  KubernetesDashboardUsername:
+    Description: Kubernetes Dashboard auth username
+    Type: String
+    MinLength: '6'
+    Default: 'kubernetes'
+    AllowedPattern: "^[0-9a-zA-Z]+([0-9a-zA-Z-.]*[0-9a-zA-Z])*$"
+    ConstraintDescription: HTTP auth username.
+
+  KubernetesDashboardPassword:
+    Description: Kubernetes Dashboard auth password
+    Type: String
+    MinLength: '12'
+    Default: 'abcdefgh123456'
+    AllowedPattern: "^[0-9a-zA-Z]+([0-9a-zA-Z-.]*[0-9a-zA-Z])*$"
+    ConstraintDescription: HTTP auth password.
+    
+  KOPSReleaseVersion:
+    MinLength: 3
+    Default: '1.11.1'
+    Description: KOPS release version
+    Type: String
+    AllowedValues:
+      - '1.11.1'
+    
+  KUBECTLReleaseVersion:
+    MinLength: 3
+    Default: '1.11.8'
+    Description: kubectl release version
+    Type: String
+    AllowedValues:
+      - '1.11.7'
+      - '1.11.8'
+
+  HELMReleaseVersion:
+    MinLength: 3
+    Default: '2.13.0'
+    Description: helm release version
+    Type: String
+    AllowedValues:
+      - '2.13.0'
 
 
 Mappings:
@@ -413,12 +489,6 @@ Mappings:
       AZ0: '0'
       AZ1: '1'
       AZ2: '2'
-    ap-northeast-1:
-      Name: Tokyo
-      NumAZs: '4'
-      AZ0: '0'
-      AZ1: '1'
-      AZ2: '2'
     sa-east-1:
       Name: Sao Paulo
       NumAZs: '3'
@@ -431,42 +501,15 @@ Mappings:
       AZ0: '0'
       AZ1: '1'
       AZ2: '0'
-
-  RegionMap: 
-    eu-central-1: 
-      "Ubuntu1604": "ami-5055cd3f"
-    eu-west-1: 
-      "Ubuntu1604": "ami-1b791862"
-    eu-west-2: 
-      "Ubuntu1604": "ami-941e04f0"
-    eu-west-3: 
-      "Ubuntu1604": "ami-c1cf79bc"
-    us-east-1: 
-      "Ubuntu1604": "ami-66506c1c"
-    us-east-2: 
-      "Ubuntu1604": "ami-965e6bf3"
-    us-west-1: 
-      "Ubuntu1604": "ami-07585467"
-    us-west-2: 
-      "Ubuntu1604": "ami-79873901"
-    ap-south-1: 
-      "Ubuntu1604": "ami-84e3b2eb"
-    ap-northeast-2: 
-      "Ubuntu1604": "ami-ab77d4c5"
-    ap-southeast-1: 
-      "Ubuntu1604": "ami-b7f388cb"
-    ap-southeast-2: 
-      "Ubuntu1604": "ami-33ab5251"
-    ap-northeast-1: 
-      "Ubuntu1604": "ami-48630c2e"
-    ca-central-1: 
-      "Ubuntu1604": "ami-173db873"
-    sa-east-1: 
-      "Ubuntu1604": "ami-bb9bd7d7"
+    eu-north-1:
+      Name: Stockholm
+      NumAZs: '3'
+      AZ0: '0'
+      AZ1: '1'
+      AZ2: '2'
 
 
 Resources:
-
 ########################################################
 # Networking Configuration
 ########################################################
@@ -479,7 +522,7 @@ Resources:
       EnableDnsHostnames: true
       Tags:
       - Key: Name
-        Value: !Sub "k8s VPC ${AWS::StackName}"
+        Value: !Sub "${AWS::StackName} VPC"
       - Key: KubernetesCluster
         Value: !Ref AWS::StackName
   
@@ -503,7 +546,7 @@ Resources:
           Ref: 'AWS::Region'
       Tags:
       - Key: Name
-        Value: !Sub "k8s publicsubnet1 ${AWS::StackName}"
+        Value: !Sub "${AWS::StackName} publicsubnet1"
       - Key: KubernetesCluster
         Value: !Ref AWS::StackName
       - Key: kubernetes.io/role/alb-ingress
@@ -529,7 +572,7 @@ Resources:
           Ref: 'AWS::Region'
       Tags:
       - Key: Name
-        Value: !Sub "k8s publicsubnet2 ${AWS::StackName}"
+        Value: !Sub "${AWS::StackName} publicsubnet2"
       - Key: KubernetesCluster
         Value: !Ref AWS::StackName
       - Key: kubernetes.io/role/alb-ingress
@@ -544,7 +587,7 @@ Resources:
       CidrBlock: !FindInMap 
         - SubnetConfig
         - !Ref VPCIPv4CIDRBlock
-        - Subnet6CIDR
+        - Subnet3CIDR
       MapPublicIpOnLaunch: true
       AvailabilityZone: !Select 
         - !FindInMap 
@@ -555,7 +598,7 @@ Resources:
           Ref: 'AWS::Region'
       Tags:
       - Key: Name
-        Value: !Sub "k8s publicsubnet3 ${AWS::StackName}"
+        Value: !Sub "${AWS::StackName} publicsubnet3"
       - Key: KubernetesCluster
         Value: !Ref AWS::StackName
       - Key: kubernetes.io/role/alb-ingress
@@ -570,7 +613,7 @@ Resources:
       CidrBlock: !FindInMap 
         - SubnetConfig
         - !Ref VPCIPv4CIDRBlock
-        - Subnet3CIDR
+        - Subnet4CIDR
       MapPublicIpOnLaunch: false
       AvailabilityZone: !Select 
         - !FindInMap 
@@ -581,35 +624,11 @@ Resources:
           Ref: 'AWS::Region'
       Tags:
       - Key: Name
-        Value: !Sub "k8s privatesubnet1 ${AWS::StackName}"
+        Value: !Sub "${AWS::StackName} privatesubnet1"
       - Key: KubernetesCluster
         Value: !Ref AWS::StackName
           
   PrivateSubnet2:
-    DependsOn:
-      - VPC
-    Type: 'AWS::EC2::Subnet'
-    Properties:
-      VpcId: !Ref VPC
-      CidrBlock: !FindInMap 
-        - SubnetConfig
-        - !Ref VPCIPv4CIDRBlock
-        - Subnet4CIDR
-      MapPublicIpOnLaunch: false
-      AvailabilityZone: !Select 
-        - !FindInMap 
-          - AWSRegion2AZ
-          - !Ref 'AWS::Region'
-          - AZ2
-        - !GetAZs 
-          Ref: 'AWS::Region'
-      Tags:
-      - Key: Name
-        Value: !Sub "k8s privatesubnet2 ${AWS::StackName}"
-      - Key: KubernetesCluster
-        Value: !Ref AWS::StackName
-        
-  PrivateSubnet3:
     DependsOn:
       - VPC
     Type: 'AWS::EC2::Subnet'
@@ -624,12 +643,36 @@ Resources:
         - !FindInMap 
           - AWSRegion2AZ
           - !Ref 'AWS::Region'
+          - AZ2
+        - !GetAZs 
+          Ref: 'AWS::Region'
+      Tags:
+      - Key: Name
+        Value: !Sub "${AWS::StackName} privatesubnet2"
+      - Key: KubernetesCluster
+        Value: !Ref AWS::StackName
+        
+  PrivateSubnet3:
+    DependsOn:
+      - VPC
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !FindInMap 
+        - SubnetConfig
+        - !Ref VPCIPv4CIDRBlock
+        - Subnet6CIDR
+      MapPublicIpOnLaunch: false
+      AvailabilityZone: !Select 
+        - !FindInMap 
+          - AWSRegion2AZ
+          - !Ref 'AWS::Region'
           - AZ0
         - !GetAZs 
           Ref: 'AWS::Region'
       Tags:
       - Key: Name
-        Value: !Sub "k8s privatesubnet3 ${AWS::StackName}"
+        Value: !Sub "${AWS::StackName} privatesubnet3"
       - Key: KubernetesCluster
         Value: !Ref AWS::StackName
 
@@ -646,7 +689,7 @@ Resources:
     Properties:
       Tags:
       - Key: Name
-        Value: !Sub "K8s InternetGateway ${AWS::StackName}"
+        Value: !Sub "${AWS::StackName} InternetGateway"
       - Key: KubernetesCluster
         Value: !Ref AWS::StackName
   
@@ -676,7 +719,7 @@ Resources:
       VpcId: !Ref VPC
       Tags:
       - Key: Name
-        Value: !Sub "K8s PublicRouteTable ${AWS::StackName}"
+        Value: !Sub "${AWS::StackName} PublicRouteTable"
       - Key: KubernetesCluster
         Value: !Ref AWS::StackName
     
@@ -739,7 +782,7 @@ Resources:
       VpcId: !Ref VPC
       Tags:
       - Key: Name
-        Value: !Sub "K8s PrivateRouteTable1 ${AWS::StackName}"
+        Value: !Sub "${AWS::StackName} PrivateRouteTable1"
       - Key: KubernetesCluster
         Value: !Ref AWS::StackName
     
@@ -753,7 +796,7 @@ Resources:
       VpcId: !Ref VPC
       Tags:
       - Key: Name
-        Value: !Sub "K8s PrivateRouteTable2 ${AWS::StackName}"
+        Value: !Sub "${AWS::StackName} PrivateRouteTable2"
       - Key: KubernetesCluster
         Value: !Ref AWS::StackName
 
@@ -766,7 +809,7 @@ Resources:
       VpcId: !Ref VPC
       Tags:
       - Key: Name
-        Value: !Sub "K8s PrivateRouteTable3 ${AWS::StackName}"
+        Value: !Sub "${AWS::StackName} PrivateRouteTable3"
       - Key: KubernetesCluster
         Value: !Ref AWS::StackName
   
@@ -814,13 +857,17 @@ Resources:
           FromPort: '1194'
           ToPort: '1194'
           CidrIp: !Ref AdminIngressLocation
+        - IpProtocol: udp
+          FromPort: '443'
+          ToPort: '443'
+          CidrIp: !Ref AdminIngressLocation
         - IpProtocol: -1
           FromPort: -1
           ToPort: -1
           CidrIp: !Sub "${VPCIPv4CIDRBlock}/16"
       VpcId: !Ref VPC
       GroupDescription: Bastion Instance Security Group
-      GroupName : !Sub "K8s BastionSecurityGroup ${AWS::StackName}"
+      GroupName : !Sub "${AWS::StackName} BastionSecurityGroup"
   
   K8sMasterAndNodeSecurityGroup:
     DependsOn:
@@ -834,7 +881,7 @@ Resources:
           CidrIp: !Sub "${VPCIPv4CIDRBlock}/16"
       VpcId: !Ref VPC
       GroupDescription: Kubernetes Istances Security Group
-      GroupName : !Sub "K8s Master And Node ${AWS::StackName}"
+      GroupName : !Sub "${AWS::StackName} Master And Node"
   
   VPCEndPointS3:
     Type: 'AWS::EC2::VPCEndpoint'
@@ -906,7 +953,97 @@ Resources:
           - .dynamodb
       VpcId: !Ref VPC
   
-      
+
+########################################################
+# Dynamically determine local Ubuntu AMI for bastion 
+# With Lambda
+########################################################
+  LambdaGetAMIImagesRole:
+    Type: "AWS::IAM::Role"
+    DependsOn:
+      - VPC
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - lambda.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: "/"
+      Policies:
+      - PolicyName: root
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+            Resource: arn:aws:logs:*:*:*
+          - Effect: Allow
+            Action:
+            - ec2:DescribeImages
+            - ec2:Describe*
+            Resource: "*"
+
+  LambdaGetAmiImagesForBastion:
+    Type: "AWS::Lambda::Function"
+    DependsOn:
+      - LambdaGetAMIImagesRole
+    Properties:
+      Code:
+        ZipFile: !Sub |
+          import json
+          import boto3
+          import cfnresponse
+
+          AMI_VENDOR_STRING="ubuntu/images/hvm-ssd/ubuntu-bionic-18.04-amd64-server*"
+
+          def GetLatestAMIID():
+            EC2 = boto3.client('ec2', region_name="${AWS::Region}")
+            response = EC2.describe_images(
+                Owners=['099720109477'],
+                Filters=[
+                  {'Name': 'name', 'Values': [AMI_VENDOR_STRING]},
+                  {'Name': 'architecture', 'Values': ['x86_64']},
+                  {'Name': 'root-device-type', 'Values': ['ebs']},
+                ],
+            )
+
+            amis = sorted(response['Images'],
+                          key=lambda x: x['CreationDate'],
+                          reverse=True)
+            print(amis[0]['ImageId'])
+            return format(amis[0]['ImageId'])
+          
+          def handler(event, context):
+            if event['RequestType'] == 'Delete':
+              cfnresponse.send(event, context, cfnresponse.SUCCESS, {})
+              return
+            try:
+              cfnresponse.send(event, context, cfnresponse.SUCCESS, { 'Id': GetLatestAMIID() })
+              return
+            except Exception as e:
+              print(e)
+              cfnresponse.send(event, context, cfnresponse.FAILED, { 'Error': format(e) })
+              return
+          
+      Handler: "index.handler"
+      Runtime: "python3.6"
+      Timeout: "300"
+      Role: !GetAtt LambdaGetAMIImagesRole.Arn
+
+  AMIInfo:
+    Type: Custom::AMIInfo
+    Properties:
+      ServiceToken: !GetAtt LambdaGetAmiImagesForBastion.Arn
+      Region: !Ref "AWS::Region"
+
+
 ########################################################
 # Bastion Configuration
 # keep bastion here because
@@ -965,6 +1102,16 @@ Resources:
             - Effect: Allow
               Action: 'iam:*'
               Resource: '*'
+      - PolicyName: CodeDeployFullAccess
+        PolicyDocument:
+          Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action: 'tag:*'
+              Resource: '*'
+            - Effect: Allow
+              Action: 'codedeploy:*'
+              Resource: '*'
       - PolicyName: R53FullAccess
         PolicyDocument:
           Version: 2012-10-17
@@ -992,6 +1139,26 @@ Resources:
             - Effect: Allow
               Action: 'ecr:*'
               Resource: '*'
+      - PolicyName: KMSFullAccess
+        PolicyDocument:
+          Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action: 'kms:*'
+              Resource: '*'
+      - PolicyName: SSMFullAccess
+        PolicyDocument:
+          Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action: 'ssm:*'
+              Resource: '*'
+            - Effect: Allow
+              Action: 'ssmmessages:*'
+              Resource: '*'
+            - Effect: Allow
+              Action: 'ds:*'
+              Resource: '*'
   
   BastionInstanceProfile:
     Type: AWS::IAM::InstanceProfile
@@ -999,6 +1166,67 @@ Resources:
       Path: "/"
       Roles:
       - !Ref BastionRole
+
+  BastionElasticIP:
+    Type: 'AWS::EC2::EIP'
+    DependsOn:
+      - VPC
+    Properties:
+      Domain: vpc
+
+  KubernetesEFS:
+    Type: "AWS::EFS::FileSystem"
+    DependsOn:
+    - VPC
+    - PrivateSubnet1
+    - PrivateSubnet2
+    - PrivateSubnet3
+    Properties: 
+      Encrypted: false
+      FileSystemTags:
+      - Key: Name
+        Value: !Sub "${AWS::StackName} EFS"
+      - Key: KubernetesEFS
+        Value: !Ref AWS::StackName
+
+  KubernetesEFSTarget1:
+    Type: "AWS::EFS::MountTarget"
+    DependsOn:
+    - VPC
+    - KubernetesEFS
+    - K8sMasterAndNodeSecurityGroup
+    - PrivateSubnet1
+    Properties:
+      FileSystemId: !Ref KubernetesEFS
+      SecurityGroups:
+        - !Ref K8sMasterAndNodeSecurityGroup
+      SubnetId: !Ref PrivateSubnet1
+  
+  KubernetesEFSTarget2:
+    Type: "AWS::EFS::MountTarget"
+    DependsOn:
+    - VPC
+    - KubernetesEFS
+    - K8sMasterAndNodeSecurityGroup
+    - PrivateSubnet2
+    Properties:
+      FileSystemId: !Ref KubernetesEFS
+      SecurityGroups:
+        - !Ref K8sMasterAndNodeSecurityGroup
+      SubnetId: !Ref PrivateSubnet2
+
+  KubernetesEFSTarget3:
+    Type: "AWS::EFS::MountTarget"
+    DependsOn:
+    - VPC
+    - KubernetesEFS
+    - K8sMasterAndNodeSecurityGroup
+    - PrivateSubnet3
+    Properties:
+      FileSystemId: !Ref KubernetesEFS
+      SecurityGroups:
+        - !Ref K8sMasterAndNodeSecurityGroup
+      SubnetId: !Ref PrivateSubnet3
 
 
   BastionHost:
@@ -1018,12 +1246,15 @@ Resources:
     - PrivateRouteTable3
     - VPCEndPointS3
     - VPCEndPointDynamoDB
+    - BastionElasticIP
+    - KubernetesEFS
+    - KubernetesEFSTarget1
+    - KubernetesEFSTarget2
+    - KubernetesEFSTarget3
+    - LambdaGetAmiImagesForBastion
+    - AMIInfo
     Properties:
-      ImageId:
-        Fn::FindInMap:
-        - RegionMap
-        - Ref: AWS::Region
-        - 'Ubuntu1604'
+      ImageId: !GetAtt AMIInfo.Id
       InstanceType: !Ref Ec2BastionInstanceType
       SourceDestCheck: false
       NetworkInterfaces:
@@ -1035,7 +1266,7 @@ Resources:
         - Ref: BastionSecurityGroup
       Tags:
       - Key: Name
-        Value: !Sub "k8s bastion host ${AWS::StackName}"
+        Value: !Sub "${AWS::StackName} bastion host"
       - Key: KubernetesCluster
         Value: !Ref AWS::StackName
       - Key: K8sBastionNumber
@@ -1045,32 +1276,58 @@ Resources:
       BlockDeviceMappings:
       - DeviceName: '/dev/sda1'
         Ebs:
-          VolumeSize: 10
+          VolumeSize: 16
           VolumeType: gp2
       UserData:
         Fn::Base64: !Sub |
           #!/bin/bash -xe
 
           apt-get update
-          apt-get -y install python-setuptools python-pip openvpn mc zip git
+          apt-get -y install python-setuptools python-pip openvpn mc zip git ruby wget nfs-common
           pip install awscli boto boto3
-          easy_install https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-latest.tar.gz
+          wget -O cfn-init.tar.gz https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-latest.tar.gz
+          pip install cfn-init.tar.gz
           
           #install AWS SSM agent
-          mkdir -p /tmp/ssm
-          cd /tmp/ssm
-          wget https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/debian_amd64/amazon-ssm-agent.deb
-          dpkg -i amazon-ssm-agent.deb
-          systemctl enable amazon-ssm-agent
-          systemctl start amazon-ssm-agent
+          if [[ ! -n `ps axu | grep amazon-ssm-agent | grep -v grep` ]];
+          then
+            mkdir -p /tmp/ssm
+            cd /tmp/ssm
+            wget https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/debian_amd64/amazon-ssm-agent.deb
+            dpkg -i amazon-ssm-agent.deb
+            systemctl enable amazon-ssm-agent
+            systemctl start amazon-ssm-agent
+          fi
+          
+          #install AWS CodeDeploy agent
+          wget https://aws-codedeploy-eu-west-1.s3.amazonaws.com/latest/install
+          chmod +x ./install
+          ./install auto
+          systemctl enable codedeploy-agent
+          systemctl start codedeploy-agent
+          systemctl status codedeploy-agent
+          
+          #swap
+          dd if=/dev/zero of=/swapfile count=1024 bs=1MiB
+          mkswap /swapfile
+          chmod 600 /swapfile
+          swapon /swapfile
+          echo "/swapfile    none    swap    sw    0   0" | tee --append /etc/fstab
+          echo "vm.swappiness=10" | tee --append /etc/sysctl.conf
+          echo "vm.vfs_cache_pressure=50" | tee --append /etc/sysctl.conf
+          sysctl -p
           
           touch /tmp/init-kops.log
+          
+          #update snap packages
+          snap refresh > /dev/null 2>&1
           
           #start cfn service
           /usr/local/bin/cfn-init -v --stack ${AWS::StackId} --resource BastionHost --region ${AWS::Region}
           /usr/local/bin/cfn-signal -e $? --stack ${AWS::StackId} --resource BastionHost --region ${AWS::Region}
           
-          CLOUDWATCHGROUP=k8s-bastion-${AWS::StackName}
+          EIP_LIST=${BastionElasticIP}
+          CLOUDWATCHGROUP=${AWS::StackName}-bastion-logs
     
     Metadata:
       AWS::CloudFormation::Init:
@@ -1120,15 +1377,21 @@ Resources:
                 
                 #create routes in private rourte tables
                 instance_id=`curl http://169.254.169.254/latest/meta-data/instance-id`
+                
                 aws ec2 create-route --destination-cidr-block 0.0.0.0/0 --instance-id $instance_id --route-table-id ${PrivateRouteTable1} --region ${AWS::Region}
                 aws ec2 create-route --destination-cidr-block 0.0.0.0/0 --instance-id $instance_id --route-table-id ${PrivateRouteTable2} --region ${AWS::Region}
                 aws ec2 create-route --destination-cidr-block 0.0.0.0/0 --instance-id $instance_id --route-table-id ${PrivateRouteTable3} --region ${AWS::Region}
-                aws ec2 create-tags --resources $instance_id --tags Key=BASTION-awslogs,Value=K8s-Bastion-${AWS::StackName} --region ${AWS::Region}
+                
+                #sync bootstrap scripts from s3
                 aws s3 sync s3://${S3BootstrapBucketName}/${S3BootstrapBucketPrefix}/bootstrap/ ./ --region ${AWS::Region} --quiet
                 
                 chmod +x ./*.sh
                 chmod +x ./*.py
-                ./01-init-bastion-host.sh ${S3BootstrapBucketName} ${S3BootstrapBucketPrefix} ${AWS::Region} ${VPCIPv4CIDRBlock}
+                ./01-init-bastion-host.sh "${S3BootstrapBucketName}" \
+                 "${S3BootstrapBucketPrefix}" \
+                 "${AWS::Region}" \
+                 "${VPCIPv4CIDRBlock}/16"
+                 
                 exit 0
 
             '/opt/bastion-init-internal-dns.sh':
@@ -1165,8 +1428,30 @@ Resources:
                 
                 aws s3 sync s3://${S3BootstrapBucketName}/${S3BootstrapBucketPrefix}/easy-openvpn/ /opt/easy-openvpn/ --region ${AWS::Region} --quiet
 
-                ./03-init-openvpn.sh "${VPCIPv4CIDRBlock}" "EU" "${AWS::StackName}" "${AWS::StackName}" "${AWS::StackName}" "Email" "OU" ${VPNNumberOfPreGeneratedCerts} "${AWS::StackName}-B1" ""
+                ./03-init-openvpn.sh "${VPCIPv4CIDRBlock}" "EU" "${AWS::StackName}" "${AWS::StackName}" "${AWS::StackName}" "Email" "OU" ${VPNNumberOfPreGeneratedCerts} "${AWS::StackName}-V2" ""
                 exit 0
+
+            '/opt/bastion-init-efs.sh':
+              mode: '000755'
+              owner: "root"
+              group: "root"
+              content: !Sub |
+                #!/bin/bash
+                
+                #mount efs
+                mkdir -p /mnt/efs
+                chmod 777 /mnt/efs
+                mount -t nfs -o nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2 ${KubernetesEFS}.efs.${AWS::Region}.amazonaws.com:/ /mnt/efs
+                
+                
+                chown -R ubuntu:www-data /mnt/efs
+                chmod -R 777 /mnt/efs
+                chmod -R og+rwXs /mnt/efs
+                
+                echo "${KubernetesEFS}.efs.${AWS::Region}.amazonaws.com:/  /mnt/efs nfs4 nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2,_netdev,noresvport 0 0" | tee --append /etc/fstab
+                
+                exit 0
+
 
             '/opt/bastion-init-kops.sh':
               mode: '000755'
@@ -1186,15 +1471,65 @@ Resources:
                   exit 0
                 fi
                 
-                CWLOGS=""
-                if [[ "${KubernetesLogToAWSCloudwatchLogs}" == "true" ]]; 
+                self_ami_id=""
+                #self_ami_id=`curl http://169.254.169.254/latest/meta-data/ami-id`
+                
+                ./04-init-kops.sh "${AWS::Region}" \
+                  "${AWS::StackName}" \
+                  "${Ec2K8sMasterInstanceType}" \
+                  "${Ec2K8sNodeInstanceType}" \
+                  "${Ec2K8sNodeCapacityMin}" \
+                  "${Ec2K8sNodeCapacityMax}" \
+                  "${Ec2EBSK8sDiskSizeGb}" \
+                  "${Ec2K8sAMIOsType}" \
+                  "false" \
+                  "${VPC}" \
+                  "${VPCIPv4CIDRBlock}/16" \
+                  "${PrivateSubnet1}" \
+                  "${PrivateSubnet2}" \
+                  "${PrivateSubnet3}" \
+                  "${PublicSubnet1}" \
+                  "${PublicSubnet2}" \
+                  "${PublicSubnet3}" \
+                  "${K8sMasterAndNodeSecurityGroup}" \
+                  "${S3BootstrapBucketName}" \
+                  "${S3BootstrapBucketPrefix}" \
+                  "${KubernetesDashboard}" \
+                  "${KubernetesALBIngressController}" \
+                  "${KubernetesClusterAutoscaler}" \
+                  "${KubernetesAPIPublicAccess}" \
+                  "${KubernetesExternalDNSPlugin}" \
+                  "${KubernetesExternalDNSName}" \
+                  "${KubernetesExternalDNSTXTSelector}" \
+                  "${KOPSReleaseVersion}" \
+                  "${KUBECTLReleaseVersion}" \
+                  "${HELMReleaseVersion}" \
+                  "$self_ami_id"
+                  
+                exit 0
+                
+            '/opt/bastion-init-dashboard.sh':
+              mode: '000755'
+              owner: "root"
+              group: "root"
+              content: !Sub |
+                #!/bin/bash
+
+                cd /opt/bastion-init
+                
+                if [[ "${InstallKubernetesIntoVPC}" == "false" ]]; 
                 then
-                  echo "Kubernetes Docker logs sent to AWS CloudWatch Logs group ..."
-                  CWLOGS="YES"
+                  echo "Kubernetes cluster installation does not selected."
                   exit 0
                 fi
                 
-                ./04-init-kops.sh ${AWS::Region} ${AWS::StackName} "NONE" ${Ec2K8sMasterInstanceType} ${Ec2K8sNodeInstanceType} ${Ec2K8sNodeCapacityMin} ${Ec2K8sNodeCapacityMax} ${Ec2EBSK8sDiskSizeGb} ${Ec2K8sAMIOsType} "false" ${PrivateSubnet1} ${PrivateSubnet2} ${VPC} "${VPCIPv4CIDRBlock}/16" ${K8sMasterAndNodeSecurityGroup} ${AWS::StackName} ${S3BootstrapBucketName} ${S3BootstrapBucketPrefix} "${KubernetesDashboard}" "false" "${KubernetesALBIngressController}" "${KubernetesClusterAutoscaler}" "${PrivateSubnet3}" "${PublicSubnet1}" "${PublicSubnet2}" "${PublicSubnet3}" "${KubernetesAPIPublicAccess}" "$CWLOGS"
+                if [[ "${KubernetesDashboard}" == "false" ]]; 
+                then
+                  echo "Skip kubernetes dashboard."
+                  exit 0
+                fi
+                
+                ./05-init-kubernetes-dashboard.sh "${KubernetesDashboardUsername}" "${KubernetesDashboardPassword}"
 
                 exit 0
             
@@ -1232,16 +1567,19 @@ Resources:
               command: "/opt/bastion-init-internal-dns.sh >> /tmp/init-kops.log 2>&1"
             "04-init-openvpn":
               command: "/opt/bastion-init-openvpn.sh >> /tmp/init-kops.log 2>&1"
-            "05-init-kops":
+            "05-init-efs":
+              command: "/opt/bastion-init-efs.sh >> /tmp/init-kops.log 2>&1"
+            "06-init-kops":
               command: "/opt/bastion-init-kops.sh >> /tmp/init-kops.log 2>&1"
-            "06-init-finish":
+            "07-init-dashboard":
+              command: "/opt/bastion-init-dashboard.sh >> /tmp/init-kops.log 2>&1"
+            "08-init-finish":
               command: "/opt/bastion-init-finish.sh"
     CreationPolicy:
       ResourceSignal:
         Timeout: PT60M
 
 
-  # This is a CloudWatch alarm https://aws.amazon.com/cloudwatch/
   # If the Bastion node is unresponsive for 5 minutes, AWS will attempt to recover it
   BastionRecoveryTestAlarm:
     Type: AWS::CloudWatch::Alarm
@@ -1252,7 +1590,7 @@ Resources:
       - PublicRoute
       - BastionHost
     Properties:
-      AlarmDescription: Trigger a recovery when instance status check fails for 15
+      AlarmDescription: Trigger a recovery when instance status check fails for 10
         consecutive minutes.
       Namespace: AWS/EC2
       MetricName: StatusCheckFailed_System
@@ -1260,7 +1598,7 @@ Resources:
       # 300-second periods (5 minute)
       Period: '300'
       # 5-minute check-ins
-      EvaluationPeriods: '3'
+      EvaluationPeriods: '2'
       ComparisonOperator: GreaterThanThreshold
       Threshold: '0'
       # This is the call that actually tries to recover the instance
@@ -1274,8 +1612,6 @@ Resources:
 ###############################################
 # Lambda function for graceful tear-down of KOPS by AWS SSM
 ###############################################
-
-  # IAM role for Lambda function for generating kubeadm token
   LambdaGracefulTearDownRole:
     Type: "AWS::IAM::Role"
     DependsOn:
@@ -1403,27 +1739,27 @@ Resources:
           def handler(event, context):
             if event['RequestType'] == 'Delete':
               r=ssm_del_k8scluster()
-              #print r
-              print time.ctime()
+              #print(r)
+              print(time.ctime())
               commandID=r.get('Command').get('CommandId')
-              print commandID
+              print(commandID)
               time.sleep(5)
-              for _ in xrange(80):
+              for _ in range(80):
                   try:
                       response = ssm.get_command_invocation(
                           CommandId=commandID,
                           InstanceId=instanceID
                       )
                       ssm_status=response.get('Status')
-                      print "-----"
-                      print ssm_status
-                      print time.ctime()
+                      print("-----")
+                      print(ssm_status)
+                      print(time.ctime())
                       if ssm_status in ssm_exit_statuses:
-                         print "SSM Command Finished."
+                         print("SSM Command Finished.")
                          break
                       time.sleep(3)
-                  except Exception,e:
-                      print e
+                  except Exception as e:
+                      print(e)
                       time.sleep(3)
                       pass
               time.sleep(30)
@@ -1434,7 +1770,7 @@ Resources:
               return {"Create":"OK"}
               
       Handler: "index.handler"
-      Runtime: "python2.7"
+      Runtime: "python3.6"
       Timeout: "300"
       Role: !GetAtt LambdaGracefulTearDownRole.Arn
 
@@ -1468,16 +1804,21 @@ Outputs:
       ubuntu@${BastionHost.PublicIp}:/opt/kops-state/KOPS_* ./
       
   OpenVPNConnectionConfigs:
-    Description: Get Bastion Host OpenVPN configs / keys to local machine. More in documentation.
+    Description: Get Bastion Host OpenVPN configs / keys to local machine. More in documentation.(optional)
     Value: !Sub >-
       SSH_KEY="path/to/${Ec2KeyPairName}";
       scp
       -i $SSH_KEY
       ubuntu@${BastionHost.PublicIp}:/opt/openvpn-keys/* ./
-  
-  AWSLogs:
-    Description: Get logs from Kubernetes pods and bastion logs (optional).
+      
+  AWSEFSNFSMountPoint:
+    Description: AWS EFS filesystem mount point
     Value: !Sub >-
-      Bastionhost - k8s-bastion-${AWS::StackName}
-      Dcoker containers - k8s-all-cluster-logs-${AWS::StackName}
+      ${KubernetesEFS}.efs.${AWS::Region}.amazonaws.com
+  
+  BastionAWSLogs:
+    Description: Get logs from Kubernetes Docker pods and bastion host bootstrap. (optional)
+    Value: !Sub >-
+      Bastionhost - ${AWS::StackName}-bastion-logs
+      Dcoker containers - ${AWS::StackName}-kubernetes-logs
 

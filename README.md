@@ -29,7 +29,8 @@ We always keep focus on security, transparency and simplicity. This guide is mai
 * one S3 bucket for kops state store,
 * one Route53 private zone for VPC (optional),
 * OpenVPN service with auto-generated keys on bastion host (optional)
-
+* AWS EFS mounted on bastion in all AZs
+* optional ALB ingress controller with external (Route53) domain management
 
 # How To build your cluster
 
@@ -53,10 +54,6 @@ The cluster (via bastion host) creation lasts around 10 minutes, please be patie
 
 **After the clutser has been created, just connect to the bastion host via SSH, the "kops", "kubectl" and "helm" commands working out-of-the box, no extras steps needed!**
 
-# Logs
-
-Optional: If you choose in template options, all container logs are sent to AWS CloudWatch Logs. In that case, local "kubectl" logs aren't  available internally via API call (e.g. kubectl logs ... command: "Error response from daemon: configured logging driver does not support reading") Please check the AWS CloudWatch / Logs / K8s* for container logs.
-
 # Abstract paper
 
 Have a look at [this abstract paper](docs/TC2_Abstratct_production_grade_Kubernetes_deployment_on_AWS.pdf) for the high level details of this solution.
@@ -72,7 +69,7 @@ https://totalcloudconsulting.hu/en/solutions
 * KOPS documentation: https://github.com/kubernetes/kops/blob/master/docs/aws.md ,  https://github.com/kubernetes/kops/tree/master/docs
 * Kubernetes Host OS versions: https://github.com/kubernetes/kops/blob/master/docs/images.md
 * OpenVPN: https://github.com/tatobi/easy-openvpn
-* Heptio Kubernetes Quick Start guide: https://aws.amazon.com/quickstart/architecture/heptio-kubernetes/
+* ALB ingress controller: https://github.com/kubernetes-sigs/aws-alb-ingress-controller
 
 # Costs and licenses
 

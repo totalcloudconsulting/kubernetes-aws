@@ -5,15 +5,10 @@
 
 source ./vars
 
-if [[ -e dh2048.pem ]];
-then
-    mv dh2048.pem $KEY_DIR/
-fi
-
 if [[ -e $KEY_DIR/dh2048.pem ]];
 then
     echo "WARNING: dh2048.pem already exists! Exit."
-    exit 0
+    exit 1
 fi
 
 

@@ -23,7 +23,6 @@ then
     R53PrivateDNSZoneName=`cat /opt/kops-state/KOPS_VPC_R53_ZONE_DNS`
 fi
 
-
 export openvpnvars="/etc/openvpn/keygen/vars"
 
 ip=`curl http://169.254.169.254/latest/meta-data/public-ipv4`
@@ -53,6 +52,10 @@ fi
 ./create-server
 service openvpn@server start
 systemctl enable openvpn@server
+
+#set options in client file for tunnelblick
+echo "dhcp-option DNS ${awsdns}" | tee --append client-template-embed.ovpn
+echo "dhcp-option DOMAIN $R53PrivateDNSZoneName" | tee --append client-template-embed.ovpn
 
 i=1
 while [[ "$i" -le "${VPNNumberOfPreGeneratedCerts}" ]];

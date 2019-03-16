@@ -2,73 +2,35 @@
     {
         "Effect": "Allow",
         "Action": [
-            "acm:DescribeCertificate",
-            "acm:ListCertificates"
+            "acm:*"
         ],
         "Resource": "*"
     },
     {
         "Effect": "Allow",
         "Action": [
-            "autoscaling:DescribeAutoScalingGroups",
-            "autoscaling:DescribeAutoScalingInstances",
-            "autoscaling:DescribeTags",
-            "autoscaling:DescribeLaunchConfigurations",
-            "autoscaling:SetDesiredCapacity",
-            "autoscaling:TerminateInstanceInAutoScalingGroup"
+            "autoscaling:*"
         ],
         "Resource": "*"
     },
     {
         "Effect": "Allow",
         "Action": [
-            "ec2:AuthorizeSecurityGroupIngress",
-            "ec2:CreateSecurityGroup",
-            "ec2:CreateTags",
-            "ec2:DeleteSecurityGroup",
-            "ec2:DescribeInstances",
-            "ec2:DescribeSecurityGroups",
-            "ec2:DescribeSubnets",
-            "ec2:DescribeTags",
-            "ec2:ModifyInstanceAttribute",
-            "ec2:RevokeSecurityGroupIngress"
+            "ec2:*"
         ],
         "Resource": "*"
     },
     {
         "Effect": "Allow",
         "Action": [
-            "elasticloadbalancing:AddTags",
-            "elasticloadbalancing:CreateListener",
-            "elasticloadbalancing:CreateLoadBalancer",
-            "elasticloadbalancing:CreateRule",
-            "elasticloadbalancing:CreateTargetGroup",
-            "elasticloadbalancing:DeleteListener",
-            "elasticloadbalancing:DeleteLoadBalancer",
-            "elasticloadbalancing:DeleteRule",
-            "elasticloadbalancing:DeleteTargetGroup",
-            "elasticloadbalancing:DeregisterTargets",
-            "elasticloadbalancing:DescribeListeners",
-            "elasticloadbalancing:DescribeLoadBalancers",
-            "elasticloadbalancing:DescribeLoadBalancerAttributes",
-            "elasticloadbalancing:DescribeRules",
-            "elasticloadbalancing:DescribeTags",
-            "elasticloadbalancing:DescribeTargetGroups",
-            "elasticloadbalancing:DescribeTargetHealth",
-            "elasticloadbalancing:ModifyListener",
-            "elasticloadbalancing:ModifyLoadBalancerAttributes",
-            "elasticloadbalancing:ModifyRule",
-            "elasticloadbalancing:ModifyTargetGroup",
-            "elasticloadbalancing:RegisterTargets",
-            "elasticloadbalancing:RemoveTags",
-            "elasticloadbalancing:SetSecurityGroups",
-            "elasticloadbalancing:SetSubnets"
+            "elasticloadbalancing:*"
         ],
         "Resource": "*"
     },
     {
         "Effect": "Allow",
         "Action": [
+            "iam:CreateServiceLinkedRole",
             "iam:GetServerCertificate",
             "iam:ListServerCertificates"
         ],
@@ -77,13 +39,7 @@
     {
         "Effect": "Allow",
         "Action": [
-            "ecr:BatchCheckLayerAvailability",
-            "ecr:BatchGetImage",
-            "ecr:DescribeRepositories",
-            "ecr:GetAuthorizationToken",
-            "ecr:GetDownloadUrlForLayer",
-            "ecr:GetRepositoryPolicy",
-            "ecr:ListImages"
+            "ecr:*"
         ],
         "Resource": [
             "*"
@@ -92,13 +48,127 @@
     {
         "Effect": "Allow",
         "Action": [
-            "logs:CreateLogGroup",
-            "logs:CreateLogStream",
-            "logs:PutLogEvents",
-            "logs:DescribeLogStreams"
+            "logs:*"
         ],
         "Resource": [
             "*"
         ]
+    },
+    {
+        "Effect": "Allow",
+        "Action": [
+            "route53:ChangeResourceRecordSets"
+        ],
+        "Resource": [
+            "arn:aws:route53:::hostedzone/*"
+        ]
+    },
+    {
+        "Effect": "Allow",
+        "Action": [
+            "route53:ListHostedZones",
+            "route53:ListResourceRecordSets"
+        ],
+        "Resource": [
+            "*"
+        ]
+    },
+    {
+        "Effect": "Allow",
+        "Action": [
+            "s3:Get*",
+            "s3:List*"
+        ],
+        "Resource": "*"
+    },
+    {
+        "Effect": "Allow",
+        "Action": [
+            "waf-regional:GetWebACLForResource",
+            "waf-regional:GetWebACL",
+            "waf-regional:AssociateWebACL",
+            "waf-regional:DisassociateWebACL"
+        ],
+        "Resource": "*"
+    },
+    {
+        "Effect": "Allow",
+        "Action": [
+            "waf:GetWebACL",
+            "waf:AssociateWebACL",
+            "waf:DisassociateWebACL"
+        ],
+        "Resource": "*"
+    },
+    {
+        "Effect": "Allow",
+        "Action": [
+            "kms:*"
+        ],
+        "Resource": "*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "tag:GetResources",
+        "tag:TagResources",
+        "tag:AddResourceTags",
+        "tag:RemoveResourceTags",
+        "tag:TagResources",
+        "tag:UntagResources"
+      ],
+      "Resource": "*"
+    },
+    {
+        "Effect": "Allow",
+        "Action": [
+            "sns:Publish"
+        ],
+        "Resource": [
+            "*"
+        ]
+    },
+    {
+        "Effect": "Allow",
+        "Action": [
+            "s3:*"
+        ],
+        "Resource": "*"
+    },
+    {
+        "Effect": "Allow",
+        "Action": [
+            "ssm:*"
+        ],
+        "Resource": "*"
+    },
+    {
+        "Effect": "Allow",
+        "Action": [
+            "ssmmessages:*"
+        ],
+        "Resource": "*"
+    },
+    {
+        "Effect": "Allow",
+        "Action": [
+            "ec2messages:*"
+        ],
+        "Resource": "*"
+    },
+    {
+        "Effect": "Allow",
+        "Action": [
+            "ds:CreateComputer",
+            "ds:DescribeDirectories"
+        ],
+        "Resource": "*"
+    },
+    {
+        "Effect": "Allow",
+        "Action": [
+            "cloudwatch:PutMetricData"
+        ],
+        "Resource": "*"
     }
 ]

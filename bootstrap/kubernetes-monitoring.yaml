@@ -27,7 +27,7 @@ spec:
     spec:
       containers:
       - name: influxdb
-        image: k8s.gcr.io/heapster-influxdb-amd64:v1.3.3
+        image: k8s.gcr.io/heapster-influxdb-amd64:v1.5.2
         volumeMounts:
         - mountPath: /data
           name: influxdb-storage
@@ -68,12 +68,12 @@ spec:
     spec:
       containers:
       - name: grafana
-        image: k8s.gcr.io/heapster-grafana-amd64:v4.4.3
+        image: k8s.gcr.io/heapster-grafana-amd64:v5.0.4
         ports:
         - containerPort: 3000
           protocol: TCP
         volumeMounts:
-        - mountPath: {{SSL_CERT_DIR}}
+        - mountPath: /etc/ssl/certs
           name: ca-certificates
           readOnly: true
         - mountPath: /var
@@ -100,7 +100,7 @@ spec:
       volumes:
       - name: ca-certificates
         hostPath:
-          path: {{SSL_CERT_DIR}}
+          path: /etc/ssl/certs
       - name: grafana-storage
         emptyDir: {}
 ---
@@ -132,6 +132,12 @@ metadata:
   name: heapster
   namespace: kube-system
 ---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: heapster
+  namespace: kube-system
+---
 apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
@@ -148,7 +154,7 @@ spec:
       serviceAccountName: heapster
       containers:
       - name: heapster
-        image: k8s.gcr.io/heapster-amd64:v1.4.2
+        image: k8s.gcr.io/heapster-amd64:v1.5.4
         imagePullPolicy: IfNotPresent
         command:
         - /heapster
@@ -172,3 +178,4 @@ spec:
     targetPort: 8082
   selector:
     k8s-app: heapster
+

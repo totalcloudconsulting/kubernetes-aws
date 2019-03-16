@@ -10,12 +10,6 @@ import time
 print "START."
 print time.ctime()
 
-#### input, 4 parameters:
-# 1: aws region
-# 2: kops input config
-# 3: additional policies
-# 4: aws logs, log group file name
-# 5: output yaml file
 
 #defaults
 region="eu-west-1"
@@ -45,21 +39,29 @@ except:
     print "define ARG3: additional JSON policy files for master/nodes"
     sys.exit(1)
     
-#aws cloudwatch group name
-try:
-    docker_awslogs_group=sys.argv[4]
-except:
-    print "define ARG4: aws cloudwatch group name"
-    sys.exit(1)
 
 #output kops config yaml file
 try:
-    kopsconf_output_file=sys.argv[5]
+    kopsconf_output_file=sys.argv[4]
 except:
     print "define ARG5: kops output config"
     sys.exit(1)
 
+#maxspotprice for nodes
+max_spot_price_for_node=0.0
+try:
+    max_spot_price_for_node=sys.argv[5]
+except:
+    print "define ARG6: max spot price, unless 0: on-demand"
+    pass
 
+#nodes capacity max
+max_nodes_capacity=None
+try:
+    max_nodes_capacity=sys.argv[6]
+except:
+    print "define ARG7: max number of nodes, unless equals min=max"
+    pass
 
 if not os.path.exists(kopsconf_input):
   print "Missing kiops config input file!"
@@ -158,26 +160,58 @@ print "Set new subnet definitions ..."
 print replace_subnets
 kops[0]['spec']['subnets']=replace_subnets
 
-if docker_awslogs_group != "NONE":
-  print "Add docker awslogs ..."
-  kops[0]['spec']['docker'] = {'logDriver': "awslogs", "logOpt": ["awslogs-region="+region, "awslogs-group="+docker_awslogs_group]}
-
-#print "Add calico inter-AZ networking ..."
+print "Add calico inter-AZ networking ..."
 kops[0]['spec']['networking'] = {"calico": {"crossSubnet":True}}
 
-#print "Add swap accept in nodes
+print "Add swap accept in GENERAL config and enable Custom metric ..."
 kops[0]['spec']['kubelet'] = {"failSwapOn":False}
 
-#print "Add swap accept in nodes
+print "Enable POD autoscaling ..."
+kops[0]['spec']['kubeAPIServer'] = {"runtimeConfig": {"autoscaling/v2beta1":"true"}}
+
+print "Enable Custom Metrics ..."
+kops[0]['spec']['kubeControllerManager'] = {"horizontalPodAutoscalerUseRestClients": True}
+
+# yaml content
+#########################
+"""
+  - content: |
+      #!/bin/bash -xe
+      echo "* * * * * root sed -i '0,/^$/ s/^$/exit 0/' /opt/kubernetes/helpers/docker-healthcheck" >> /etc/crontab
+    name: docker-healthcheck.sh
+    type: text/x-shellscript
+"""
+
+##########################
+# node configs
+##########################
+#print "Add swap accept in MASTER config
 kops[1]['spec']['kubelet'] = {"failSwapOn":False}
+kops[1]['spec']['additionalUserData'] = [{'content': '#!/bin/bash -xe\ndd if=/dev/zero of=/swapfile count=8192 bs=1MiB\nchmod 600 /swapfile\nmkswap /swapfile\nswapon /swapfile\nsysctl vm.swappiness=10\nsysctl vm.vfs_cache_pressure=50\n', 'type': 'text/x-shellscript', 'name': 'swap.sh'},{'content': '#!/bin/bash -xe\napt-get update\napt-get -y install nfs-common\n', 'type': 'text/x-shellscript', 'name': 'nfs.sh'}]
 
-#print "Add swap accept in nodes
+
+#print "Add swap accept in NODES config
 kops[2]['spec']['kubelet'] = {"failSwapOn":False}
+kops[2]['spec']['additionalUserData'] = [{'content': '#!/bin/bash -xe\ndd if=/dev/zero of=/swapfile count=8192 bs=1MiB\nmkswap /swapfile\nswapon /swapfile\nsysctl vm.swappiness=10\nsysctl vm.vfs_cache_pressure=50\n', 'type': 'text/x-shellscript', 'name': 'swap.sh'},{'content': '#!/bin/bash -xe\napt-get update\napt-get -y install nfs-common\n', 'type': 'text/x-shellscript', 'name': 'nfs.sh'}]
+
+kops[2]['spec']['nodeLabels']["beta.kubernetes.io/fluentd-ds-ready"]="true"
+##########################
 
 
-## how to add extra policies to specs:
-## AWS ECR + AWS ALB
-## additionalPolicies': {'node': '[\n  {\n    "Effect": "Allow",\n    "Action": ["dynamodb:*"],\n    "Resource": ["*"]\n  },\n  {\n    "Effect": "Allow",\n    "Action": ["es:*"],\n    "Resource": ["*"]\n  }\n]\n'},
+if max_spot_price_for_node:
+  print "Set MAX SPOT price for NODES: ",str(max_spot_price_for_node)
+  try:
+    max_spot_price_for_node=float(max_spot_price_for_node)
+    if max_spot_price_for_node > 0.0:
+      kops[2]['spec']['maxPrice']=str(max_spot_price_for_node)
+  except Exception,e:
+    print "SPOT ERROR:",str(e)
+    pass
+
+#set maximum size for NODES
+if max_nodes_capacity:
+  print "Set MAX ASG size for NODES: ",str(max_nodes_capacity)
+  kops[2]['spec']['maxSize']=int(max_nodes_capacity)
 
 print "Apply new policies ..."
 if os.path.exists(kopsconf_additinalpolicies):

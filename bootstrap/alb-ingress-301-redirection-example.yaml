@@ -1,0 +1,35 @@
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  annotations:
+    alb.ingress.kubernetes.io/actions.redirect: '{"Type": "redirect", "RedirectConfig": { "Protocol": "HTTPS", "StatusCode": "HTTP_301", "Port": "443"}}'
+    alb.ingress.kubernetes.io/certificate-arn: arn:*****
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80, "HTTPS": 443}]'
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/security-groups: sg-*******
+    alb.ingress.kubernetes.io/successCodes: 200,301,302,303,401,403,404,405
+  labels:
+    run: aws-elb-test-ingress
+  name: aws-elb-test-ingress
+spec:
+  rules:
+  - http:
+      paths:
+      - backend:
+          serviceName: redirect
+          servicePort: use-annotation
+        path: /*
+  - host: kubermetes-service.example.com
+    http:
+      paths:
+      - backend:
+          serviceName: kubermetes-service-1-name
+          servicePort: 80
+        path: /*
+  - host: kubermetes-service-2.example.com
+    http:
+      paths:
+      - backend:
+          serviceName: kubermetes-service-2-name
+          servicePort: 80
+        path: /*
